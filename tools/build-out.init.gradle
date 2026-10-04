@@ -1,0 +1,7 @@
+// Gradle 初始化脚本：把构建输出重定向到 build-out。
+// 用途：build/libs/simple_recipe_change-1.0.0.jar 被别的进程占用无法覆盖时，
+// 用它照常跑完整构建（含 reobfJar），产物名字与版本都不变：
+//     gradlew.bat build -I tools\build-out.init.gradle
+gradle.allprojects { proj ->
+    proj.layout.buildDirectory.set(new File(proj.projectDir, 'build-out'))
+}
