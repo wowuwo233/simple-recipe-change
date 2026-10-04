@@ -3,7 +3,7 @@
 在游戏内可视化编辑配方的 Forge 模组：按 **G 键**打开全中文编辑器，
 可以**添加配方**、**修改已有配方**、**删除配方**，并把结果写成 **KubeJS 可读的脚本**。
 
-当前版本 **1.4.1**。不添加任何物品或方块，只做配方编辑。
+当前版本 **1.8.1**。不添加任何物品或方块，只做配方编辑。
 
 ---
 
@@ -13,8 +13,10 @@
 |---|---|
 | 快捷键 | **G** 打开配方编辑器（可在「选项 → 按键控制」改） |
 | 三个独立模式 | **添加配方 / 修改配方 / 删除配方**，各自一个按钮，不合并 |
-| 配方类型（8 种） | **原版 6 种**：工作台合成（3×3）、物品栏合成（2×2）、**熔炉**、**高炉**、**烟熏炉**、**锻造台**<br>**农夫乐事 2 种**：**烹饪锅**、**切菜板** |
-| 类型分组 | **原版和农夫乐事分开选**：「分组」按钮在两组间切换，「类型」按钮只在当前组内循环，不用一路按过去 |
+| 配方类型（16 种） | **原版 6 种**：工作台合成（3×3）、物品栏合成（2×2）、**熔炉**、**高炉**、**烟熏炉**、**锻造台**<br>**农夫乐事 2 种**：**烹饪锅**、**切菜板**<br>**机械动力 1 类 14 台机器**：粉碎轮 / 石磨 / 动力锯 / 工作盆 / 动力冲压机 / 动力搅拌器 / 鼓风机 / 砂纸 / 注液器 / 机械手，见 [§4.7](#47-机械动力处理配方) |
+| 类型分组 | **原版 / 农夫乐事 / 机械动力分开选**：「分组」按钮在可用分组间切换，「类型」按钮只在当前组内循环，不用一路按过去 |
+| 机械动力副产物 | 副产物栏位与概率框**按机器显隐**——统计过 Create 自带的 1766 个官方配方，只有粉碎(179/192)、研磨(159/222)、洗涤(9/38)、缠魂(1/21) 有多产物，给其余机器摆副产物格纯属误导 |
+| 备注 | 「备注」输入框的内容写成脚本里的 **`//` 行注释**放在配方上方；多行备注每行各加一个 `//` |
 | 界面随类型变 | 合成类添加模式像合成台（材料 → 产物），修改/删除模式**产物在前**；烧炼是「原料 → 产物」；锻造是「模板 / 基础物品 / 升级物品 → 产物」；烹饪锅是「材料 ×6 + 容器 → 产物」；切菜板是「材料 + 工具 → 产物」 |
 | 切菜板多产物 | 产物格下方有 **4 个额外产物格**，每格右边一个**概率输入框**（0–1，留空为必定产出） |
 | 物品用标签 | **所有类型通用**的「标签：是/否」开关。勾上后输入槽的物品会写成 `#标签`——放石斧就生成 `#minecraft:axes`，钻石斧同样能满足这条配方 |
@@ -44,7 +46,7 @@
 | Forge | 47.4.26（1.20.1 推荐版） | 同上 |
 | Java (JDK) | **17**（Oracle JDK 17.0.12） | `C:\Program Files\Java\jdk-17` |
 | Gradle | 8.8 | `D:\DSH work\.gradle-home` |
-| 模组版本 | **1.4.1** | `gradle.properties` → `mod_version` |
+| 模组版本 | **1.8.1** | `gradle.properties` → `mod_version` |
 
 > MC 1.20.1 / Forge 47.x 的编译与运行目标都是 **Java 17**，用 JDK 21 会报 class file version 错误。
 
@@ -53,7 +55,7 @@
 ## 3. 常用命令
 
 ```powershell
-.\dev.ps1 build            # 编译，产物 build\libs\simple_recipe_change-1.4.1.jar
+.\dev.ps1 build            # 编译，产物 build\libs\simple_recipe_change-1.8.1.jar
 .\dev.ps1 runClient        # 启动开发版客户端
 .\dev.ps1 runServer        # 启动开发版服务端
 .\dev.ps1 runData          # 数据生成
@@ -183,7 +185,58 @@ event.recipes.farmersdelight.cutting(
 > 目前**不支持反查**：修改/删除模式下放产物不会自动查出农夫乐事的原配方，
 > 因为那需要依赖农夫乐事自己的类，本模组不直接依赖它。
 
-### 4.7 我的配方
+### 4.7 机械动力处理配方
+
+「分组」切到**机械动力**后，「类型」只有一个「处理」。**具体用哪台机器由「机器」按钮切换**，
+按钮上显示「机器名：动作」，比如 `粉碎轮：粉碎`、`动力冲压机：冲压`——
+机器名取自 Create 官方 `zh_cn.json`，不是自己翻的。
+
+| 按钮显示 | 配方类型 | 副产物 |
+|---|---|---|
+| 粉碎轮：粉碎 | `create:crushing` | ✅ |
+| 石磨：研磨 | `create:milling` | ✅ |
+| 鼓风机：洗涤 | `create:splashing` | ✅ |
+| 鼓风机：缠魂 | `create:haunting` | ✅ |
+| 动力锯：切割 | `create:cutting` | |
+| 动力冲压机：冲压 | `create:pressing` | |
+| 动力搅拌器：混合 / 压缩 | `create:mixing` / `compacting` | |
+| 砂纸：打磨 | `create:sandpaper_polishing` | |
+| 注液器：注液 | `create:filling` | |
+| 工作盆：抽液 / 处理 | `create:emptying` / `basin` | |
+| 机械手：部署 / 物品应用 | `create:deploying` / `item_application` | |
+
+> **有 4 组机器是共用的**：动力搅拌器同时负责混合和压缩，鼓风机负责洗涤和缠魂，
+> 机械手负责部署和物品应用，工作盆既抽液也做通用处理。所以光看机器名不够，
+> **动作名是必要的**——这正是按钮显示「机器名：动作」而不是只显示机器名的原因。
+
+界面上：
+
+- 材料 **3×3 九格**，产物在右侧
+- 「**处理时间**」输入框（tick，默认 **100**，不是原版烧炼的 200）
+- 「**热度**」按钮循环 **无 → 加热 → 超热**，对应 `heated` / `superheated`
+- **副产物**栏位只有上表标 ✅ 的四台机器才出现，每格右边一个概率框（0–1）
+
+生成：
+
+```js
+event.recipes.create.crushing(
+  [
+    'minecraft:gravel',
+    'minecraft:sand',
+  ],
+  [
+    'minecraft:cobblestone',
+  ]
+).processingTime(100).heatRequirement('heated').id('...')
+```
+
+- 调用路径是**命名空间对象**：`event.recipes.create.crushing(...)`，
+  写成 `event.crushing(...)` 在游戏里会报 undefined
+- 可选的 `processingTime` / `heatRequirement` 一律用**链式方法**写，不靠位置占坑——
+  否则「跳过时间直接写热度」就得凭空补一个 null
+- 默认值（100 tick / 无热度）**不写出来**
+
+### 4.8 我的配方
 
 查看本模组写过的所有配方（列表里显示产物图标、名称、操作类型、文件名）：
 
@@ -345,7 +398,24 @@ event.remove({ output: 'minecraft:torch' })   // 按产物
 这一节记录的是**实际反编译 `kubejs-forge-2001.6.5-build.26.jar` 得出的结论**（用 `javap` 读的字节码），
 不是查文档推测的。改动前想扩展新类型，请先照这个方法核实。
 
-### 8.1 KubeJS 内置支持的全部类型
+### 8.1 依赖规则：装了本体就必须装对应的 KubeJS 适配
+
+| 装了 | 没装 | 结果 |
+|---|---|---|
+| — | KubeJS | **Forge 拒绝加载**（`mods.toml` 里的硬依赖） |
+| 农夫乐事 | KubeJSDelight | **本模组拒绝加载**，并在报错里写明缺什么 |
+| 机械动力 | KubeJS Create（modid 是 **`kubejs_create`**，下划线） | **本模组拒绝加载** |
+| 农夫乐事 / 机械动力都没装 | — | 不报错，对应**分组不显示**，只要求原版 KubeJS |
+
+> **为什么这条规则写在代码里而不是 `mods.toml`**：Forge 的依赖声明只能表达
+> 「A 必须装」或「A 装了更好」，**没法表达「如果装了 A 就必须装 B」**
+> （`mandatory=false` 的依赖不会因为对方存在而变严格）。所以只能放在模组构造函数里查
+> `ModList`，不满足就抛异常。
+
+拒绝加载的理由是：这种情况下本模组照常能打开，但生成的脚本在游戏里**不会生效**，
+玩家只会以为「这模组坏了」——与其让人摸不着头脑，不如在加载阶段就把原因说清楚。
+
+### 8.2 KubeJS 内置支持的全部类型
 
 KubeJS 原生注册了这些事件方法（`BuiltinKubeJSPlugin` 的静态初始化里无条件注册）：
 
@@ -360,7 +430,7 @@ KubeJS 原生注册了这些事件方法（`BuiltinKubeJSPlugin` 的静态初始
 > `SpecialRecipeSchema`（烟花、地图克隆、鞘翅修补等）也注册了，但那些配方**不可编辑**，
 > 所以没有接。
 
-### 8.2 没被 KubeJS 支持的模组
+### 8.3 没被 KubeJS 支持的模组
 
 **农夫乐事（Farmer's Delight）、Create 等都不在内置列表里。** 它们需要：
 
@@ -371,7 +441,7 @@ KubeJS 原生注册了这些事件方法（`BuiltinKubeJSPlugin` 的静态初始
 而且 KubeJS 的 `RecipeJS` 有 `public JsonObject originalJson` 字段，说明它手里握着每条配方的原始 JSON，
 理论上**不需要逆向每个模组的配方格式**就能通用回填。
 
-### 8.3 想继续扩展时的做法
+### 8.4 想继续扩展时的做法
 
 1. 照 8.1 的方法 `javap` 反编译对应版本的 kubejs jar，确认事件方法名与参数顺序
 2. 在 `RecipeType` 枚举加类型，指定 `Category` 与 `kubeJsMethod()`
@@ -442,7 +512,7 @@ mod_id=simple_recipe_change
 mod_name=Simple Recipe Change
 mod_group_id=com.wowuwo233.simple_recipe_change
 mod_authors=wowuwo233
-mod_version=1.4.1
+mod_version=1.8.1
 ```
 
 改动后需同步：主类的 `MODID` 常量、Java 包目录与 `package` 语句、
@@ -469,12 +539,12 @@ mod_version=1.4.1
       `kubejs-forge-2001.6.5-build.26.jar` 逐个确认（方法名、参数顺序、键名），
       结果记在 [§8](#8-第三方配方类型的支持情况)
 - [x] `dev.cmd build` → **BUILD SUCCESSFUL**，`jar` 与 `reobfJar` 都正常执行
-- [x] 产物 `simple_recipe_change-1.4.1.jar`（221.9 KB，**47 个类**）内部结构正确：
-      `mods.toml` 的 `modId=simple_recipe_change` / `version=1.4.1` / `license=GPL-3.0-only`
+- [x] 产物 `simple_recipe_change-1.8.1.jar`（234.6 KB，**48 个类**）内部结构正确：
+      `mods.toml` 的 `modId=simple_recipe_change` / `version=1.8.1` / `license=GPL-3.0-only`
       与 `gradle.properties` 一致；
       资源里**无任何示例物品**（MDK 示例物品已清干净），只有 `pack.mcmeta`、两个 lang 文件、
       `mods.toml` 和 189 KB 的 `pinyin.txt`
-- [x] 已输出到工作区：`D:\DSH work\simple_recipe_change-1.4.1.jar`
+- [x] 已输出到工作区：`D:\DSH work\simple_recipe_change-1.8.1.jar`
 
 **此前构建时验证（沿用历史记录，本次未重跑）：**
 
@@ -496,7 +566,7 @@ mod_version=1.4.1
 > 要让配方真正生效需要额外安装 **KubeJS**（把它的 jar 放进 `mods`）。
 >
 > 工作区里那个 `simple_recipe_change-1.0.0.jar`（56.9 KB）是早期版本残留，可手动删除；
-> **请用 `simple_recipe_change-1.4.1.jar`**。
+> **请用 `simple_recipe_change-1.8.1.jar`**。
 
 ---
 
