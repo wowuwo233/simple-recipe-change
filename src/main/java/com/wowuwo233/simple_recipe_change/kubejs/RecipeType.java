@@ -22,11 +22,41 @@ public enum RecipeType {
     FURNACE("furnace", "熔炉烧炼", "熔炉", Category.COOKING, 1, 1),
     BLAST_FURNACE("blast_furnace", "高炉烧炼", "高炉", Category.COOKING, 1, 1),
     SMOKER("smoker", "烟熏炉", "烟熏炉", Category.COOKING, 1, 1),
-    SMITHING("smithing", "锻造台", "锻造台", Category.SMITHING, 3, 1);
+    SMITHING("smithing", "锻造台", "锻造台", Category.SMITHING, 3, 1),
+    /** 农夫乐事 · 烹饪锅：6 个材料槽 + 1 个容器槽 */
+    FARMERS_COOKING("farmersdelight_cooking", "农夫乐事 · 烹饪锅", "烹饪锅", Category.FARMERS, 7, 1),
+    /** 农夫乐事 · 切菜板：1 个材料槽 + 1 个工具槽，产物可以多个且带概率 */
+    FARMERS_CUTTING("farmersdelight_cutting", "农夫乐事 · 切菜板", "切菜板", Category.FARMERS, 2, 1);
 
     /** 配方大类，决定界面布局与生成方式 */
     public enum Category {
-        CRAFTING, COOKING, SMITHING
+        CRAFTING, COOKING, SMITHING, FARMERS
+    }
+
+    /**
+     * 类型来源分组。
+     *
+     * <p>界面里「类型」按钮只在同一分组内循环，原版和农夫乐事分开选，
+     * 免得切一次类型要按七八下。
+     */
+    public enum Group {
+        VANILLA("原版"),
+        FARMERS_DELIGHT("农夫乐事");
+
+        private final String label;
+
+        Group(String label) {
+            this.label = label;
+        }
+
+        public String label() {
+            return label;
+        }
+
+        public Group next() {
+            Group[] all = values();
+            return all[(ordinal() + 1) % all.length];
+        }
     }
 
     private final String id;
@@ -81,6 +111,7 @@ public enum RecipeType {
             case CRAFTING -> gridWidth * gridHeight;
             case COOKING -> 1;
             case SMITHING -> 3;
+            case FARMERS -> gridWidth;
         };
     }
 
@@ -91,6 +122,8 @@ public enum RecipeType {
             case INVENTORY -> new String[]{"合成格（2×2）"};
             case FURNACE, BLAST_FURNACE, SMOKER -> new String[]{"原料"};
             case SMITHING -> new String[]{"模板", "基础物品", "升级物品"};
+            case FARMERS_COOKING -> new String[]{"材料", "材料", "材料", "材料", "材料", "材料", "容器"};
+            case FARMERS_CUTTING -> new String[]{"材料", "工具"};
         };
     }
 
@@ -98,9 +131,29 @@ public enum RecipeType {
         return "产物";
     }
 
-    /** 是否是烧炼类，需要经验与烧制时间 */
+    /** 是否需要经验与烧制时间两个输入框（原版烧炼 + 农夫乐事烹饪锅） */
     public boolean hasCookingSettings() {
-        return category == Category.COOKING;
+        return category == Category.COOKING || this == FARMERS_COOKING;
+    }
+
+    /** 是否是农夫乐事类型（由 KubeJSDelight 提供 schema） */
+    public boolean isFarmers() {
+        return category == Category.FARMERS;
+    }
+
+    /** 切菜板专用：产物可以是多个，且每个可以带概率 */
+    public boolean hasMultipleOutputs() {
+        return this == FARMERS_CUTTING;
+    }
+
+    /** 切菜板专用：工具槽是否必填 */
+    public boolean hasToolSlot() {
+        return this == FARMERS_CUTTING;
+    }
+
+    /** 烹饪锅专用：容器槽是否必填（可选，留空则不写这一项） */
+    public boolean hasOptionalContainer() {
+        return this == FARMERS_COOKING;
     }
 
     /**
@@ -115,13 +168,50 @@ public enum RecipeType {
             case BLAST_FURNACE -> "blasting";
             case SMOKER -> "smoking";
             case SMITHING -> "smithing";
+            case FARMERS_COOKING -> "cooking";
+            case FARMERS_CUTTING -> "cutting";
         };
     }
 
-    /** 下一个类型，用于按钮循环切换 */
+    /**
+     * 生成脚本里用的完整事件路径（含 {@code event.}）。
+     *
+     * <p>原版九种类型在 KubeJS 里是写死在 {@code RecipesEventJS} 上的字段，
+     * 可以直接 {@code event.smelting(...)}；但 mod 提供的类型挂在命名空间对象下，
+     * 必须写成 {@code event.recipes.farmersdelight.cooking(...)}——写成
+     * {@code event.cooking(...)} 在游戏里会报 undefined。
+     */
+    public String eventPath() {
+        return isFarmers()
+                ? "event.recipes.farmersdelight." + kubeJsMethod()
+                : "event." + kubeJsMethod();
+    }
+
+    /** 下一个类型，只在同一分组内循环 */
     public RecipeType next() {
         RecipeType[] all = values();
-        return all[(ordinal() + 1) % all.length];
+        for (int i = 1; i <= all.length; i++) {
+            RecipeType t = all[(ordinal() + i) % all.length];
+            if (t.group() == this.group()) {
+                return t;
+            }
+        }
+        return this;
+    }
+
+    /** 这个类型属于哪个来源分组 */
+    public RecipeType.Group group() {
+        return isFarmers() ? Group.FARMERS_DELIGHT : Group.VANILLA;
+    }
+
+    /** 某个分组里的第一个类型 */
+    public static RecipeType firstOf(Group group) {
+        for (RecipeType t : values()) {
+            if (t.group() == group) {
+                return t;
+            }
+        }
+        return CRAFTING_TABLE;
     }
 
     /** 最前面的合成类型，切换类型时用来回退 */

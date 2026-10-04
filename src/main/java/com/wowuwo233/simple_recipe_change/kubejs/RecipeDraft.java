@@ -32,10 +32,31 @@ public record RecipeDraft(
         RemoveBy removeBy,
         String sourceRecipeId,
         double xp,
-        int cookingTime
+        int cookingTime,
+        List<ExtraOutput> extraOutputs,
+        String sound
 ) {
     /** 原版烧炼配方的默认烧制时间（tick） */
     public static final int DEFAULT_COOKING_TIME = 200;
+
+    /**
+     * 切菜板的额外产物。
+     *
+     * @param item   物品 ID
+     * @param count  数量
+     * @param chance 概率，0–1；{@code >= 1} 时写成普通产物，{@code < 1} 时写成
+     *               {@code ChanceResult.of(...)}
+     */
+    public record ExtraOutput(String item, int count, double chance) {
+        public ExtraOutput {
+            if (count < 1) {
+                count = 1;
+            }
+            if (chance <= 0D || chance > 1D) {
+                chance = 1D;
+            }
+        }
+    }
 
     public RecipeDraft {
         if (type == null) {
@@ -53,17 +74,23 @@ public record RecipeDraft(
         if (cookingTime <= 0) {
             cookingTime = DEFAULT_COOKING_TIME;
         }
+        if (sound == null) {
+            sound = "";
+        }
         // 空格子是 null，所以不能用 List.copyOf（它会拒绝 null 元素）。
         cells = cells == null
                 ? Collections.emptyList()
                 : Collections.unmodifiableList(new ArrayList<>(cells));
+        extraOutputs = extraOutputs == null
+                ? Collections.emptyList()
+                : Collections.unmodifiableList(new ArrayList<>(extraOutputs));
     }
 
     /** 便捷构造：添加配方 */
     public RecipeDraft(RecipeType type, boolean shapeless, boolean mirrored, String recipeId,
                        List<String> cells, String outputItem, int outputCount) {
         this(type, shapeless, mirrored, recipeId, cells, outputItem, outputCount,
-                Operation.ADD, RemoveBy.ID, "", 0D, DEFAULT_COOKING_TIME);
+                Operation.ADD, RemoveBy.ID, "", 0D, DEFAULT_COOKING_TIME, List.of(), "");
     }
 
     /** 便捷构造：指定操作，无原配方 */
@@ -71,7 +98,28 @@ public record RecipeDraft(
                        List<String> cells, String outputItem, int outputCount,
                        Operation operation, RemoveBy removeBy) {
         this(type, shapeless, mirrored, recipeId, cells, outputItem, outputCount,
-                operation, removeBy, "", 0D, DEFAULT_COOKING_TIME);
+                operation, removeBy, "", 0D, DEFAULT_COOKING_TIME, List.of(), "");
+    }
+
+    /** 便捷构造：带原配方 ID 与烧炼参数（切菜板的额外产物与音效留空） */
+    public RecipeDraft(RecipeType type, boolean shapeless, boolean mirrored, String recipeId,
+                       List<String> cells, String outputItem, int outputCount,
+                       Operation operation, RemoveBy removeBy, String sourceRecipeId,
+                       double xp, int cookingTime) {
+        this(type, shapeless, mirrored, recipeId, cells, outputItem, outputCount,
+                operation, removeBy, sourceRecipeId, xp, cookingTime, List.of(), "");
+    }
+
+    /** 切菜板的额外产物（每个可带概率） */
+    public RecipeDraft withExtraOutputs(List<ExtraOutput> value) {
+        return copy(type, shapeless, mirrored, recipeId, cells, outputItem, outputCount,
+                operation, removeBy, sourceRecipeId, xp, cookingTime, value, sound);
+    }
+
+    /** 切菜板的音效（留空则用农夫乐事的默认值） */
+    public RecipeDraft withSound(String value) {
+        return copy(type, shapeless, mirrored, recipeId, cells, outputItem, outputCount,
+                operation, removeBy, sourceRecipeId, xp, cookingTime, extraOutputs, value);
     }
 
     public static RecipeDraft empty(RecipeType type) {
@@ -90,70 +138,71 @@ public record RecipeDraft(
     private RecipeDraft copy(RecipeType type, boolean shapeless, boolean mirrored, String recipeId,
                              List<String> cells, String outputItem, int outputCount,
                              Operation operation, RemoveBy removeBy, String sourceRecipeId,
-                             double xp, int cookingTime) {
+                             double xp, int cookingTime,
+                             List<ExtraOutput> extraOutputs, String sound) {
         return new RecipeDraft(type, shapeless, mirrored, recipeId, cells, outputItem, outputCount,
-                operation, removeBy, sourceRecipeId, xp, cookingTime);
+                operation, removeBy, sourceRecipeId, xp, cookingTime, extraOutputs, sound);
     }
 
     public RecipeDraft withType(RecipeType newType) {
         return copy(newType, shapeless, mirrored, recipeId, cells, outputItem, outputCount,
-                operation, removeBy, sourceRecipeId, xp, cookingTime);
+                operation, removeBy, sourceRecipeId, xp, cookingTime, extraOutputs, sound);
     }
 
     public RecipeDraft withShapeless(boolean value) {
         return copy(type, value, mirrored, recipeId, cells, outputItem, outputCount,
-                operation, removeBy, sourceRecipeId, xp, cookingTime);
+                operation, removeBy, sourceRecipeId, xp, cookingTime, extraOutputs, sound);
     }
 
     public RecipeDraft withMirrored(boolean value) {
         return copy(type, shapeless, value, recipeId, cells, outputItem, outputCount,
-                operation, removeBy, sourceRecipeId, xp, cookingTime);
+                operation, removeBy, sourceRecipeId, xp, cookingTime, extraOutputs, sound);
     }
 
     public RecipeDraft withRecipeId(String value) {
         return copy(type, shapeless, mirrored, value, cells, outputItem, outputCount,
-                operation, removeBy, sourceRecipeId, xp, cookingTime);
+                operation, removeBy, sourceRecipeId, xp, cookingTime, extraOutputs, sound);
     }
 
     public RecipeDraft withOperation(Operation value) {
         return copy(type, shapeless, mirrored, recipeId, cells, outputItem, outputCount,
-                value, removeBy, sourceRecipeId, xp, cookingTime);
+                value, removeBy, sourceRecipeId, xp, cookingTime, extraOutputs, sound);
     }
 
     public RecipeDraft withRemoveBy(RemoveBy value) {
         return copy(type, shapeless, mirrored, recipeId, cells, outputItem, outputCount,
-                operation, value, sourceRecipeId, xp, cookingTime);
+                operation, value, sourceRecipeId, xp, cookingTime, extraOutputs, sound);
     }
 
     public RecipeDraft withSourceRecipeId(String value) {
         return copy(type, shapeless, mirrored, recipeId, cells, outputItem, outputCount,
-                operation, removeBy, value, xp, cookingTime);
+                operation, removeBy, value, xp, cookingTime, extraOutputs, sound);
     }
 
     public RecipeDraft withCells(List<String> newCells) {
         return copy(type, shapeless, mirrored, recipeId, newCells, outputItem, outputCount,
-                operation, removeBy, sourceRecipeId, xp, cookingTime);
+                operation, removeBy, sourceRecipeId, xp, cookingTime, extraOutputs, sound);
     }
 
     public RecipeDraft withOutput(String item, int count) {
         return copy(type, shapeless, mirrored, recipeId, cells, item, count,
-                operation, removeBy, sourceRecipeId, xp, cookingTime);
+                operation, removeBy, sourceRecipeId, xp, cookingTime, extraOutputs, sound);
     }
 
     public RecipeDraft withXp(double value) {
         return copy(type, shapeless, mirrored, recipeId, cells, outputItem, outputCount,
-                operation, removeBy, sourceRecipeId, value, cookingTime);
+                operation, removeBy, sourceRecipeId, value, cookingTime, extraOutputs, sound);
     }
 
     public RecipeDraft withCookingTime(int value) {
         return copy(type, shapeless, mirrored, recipeId, cells, outputItem, outputCount,
-                operation, removeBy, sourceRecipeId, xp, value);
+                operation, removeBy, sourceRecipeId, xp, value, extraOutputs, sound);
     }
 
     /** 「我的配方」载入时整体套用 */
     public RecipeDraft withCookingSettings(double newXp, int newCookingTime) {
         return copy(type, shapeless, mirrored, recipeId, cells, outputItem, outputCount,
-                operation, removeBy, sourceRecipeId, newXp, newCookingTime);
+                operation, removeBy, sourceRecipeId, newXp, newCookingTime, extraOutputs, sound);
     }
 
     /** 只保留本品类网格范围内的格子（例如 2×2 模式下忽略第 3 行/列） */

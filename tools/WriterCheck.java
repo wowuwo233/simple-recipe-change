@@ -28,6 +28,7 @@ public class WriterCheck {
         blockRemovalFromFile();
         cookingRecipes();
         smithingRecipe();
+        farmersDelight();
 
         System.out.println();
         if (failures == 0) {
@@ -344,6 +345,59 @@ public class WriterCheck {
         RecipeDraft missingTemplate = new RecipeDraft(RecipeType.SMITHING, false, true, "",
                 onlyBase, "minecraft:netherite_sword", 1);
         expectError("缺模板时报错", () -> KubeJsWriter.renderRecipeCall(missingTemplate, "x"));
+    }
+
+    static void farmersDelight() {
+        section("农夫乐事 · 烹饪锅");
+        List<String> cells = blank(9);
+        cells.set(0, "minecraft:beef");
+        cells.set(1, "#forge:vegetables");
+        cells.set(6, "minecraft:bowl");
+        RecipeDraft cook = new RecipeDraft(RecipeType.FARMERS_COOKING, false, true,
+                "simple_recipe_change:beef_stew", cells, "farmersdelight:beef_stew", 1,
+                Operation.ADD, RemoveBy.OUTPUT).withXp(1).withCookingTime(200);
+        String c1 = KubeJsWriter.renderRecipeCall(cook, "simple_recipe_change");
+        System.out.println(c1);
+        check("烹饪锅用命名空间路径", c1.contains("event.recipes.farmersdelight.cooking("));
+        check("绝不写成 event.cooking(", !c1.contains("event.cooking("));
+        check("材料在数组里", c1.contains("'minecraft:beef'") && c1.contains("'#forge:vegetables'"));
+        check("容器排在材料之后", c1.indexOf("'minecraft:bowl'") > c1.indexOf("'#forge:vegetables'"));
+
+        List<String> noBox = blank(9);
+        noBox.set(0, "minecraft:beef");
+        RecipeDraft cook2 = new RecipeDraft(RecipeType.FARMERS_COOKING, false, true, "", noBox,
+                "farmersdelight:beef_stew", 1, Operation.ADD, RemoveBy.OUTPUT);
+        check("不填容器就不写这一项", !KubeJsWriter.renderRecipeCall(cook2, "x").contains("bowl"));
+
+        section("农夫乐事 · 切菜板");
+        List<String> cut = blank(9);
+        cut.set(0, "minecraft:cobblestone");
+        cut.set(1, "#minecraft:pickaxes");
+        RecipeDraft cutting = new RecipeDraft(RecipeType.FARMERS_CUTTING, false, true,
+                "simple_recipe_change:cut_stone", cut, "minecraft:stone", 1,
+                Operation.ADD, RemoveBy.OUTPUT)
+                .withExtraOutputs(List.of(
+                        new RecipeDraft.ExtraOutput("minecraft:flint", 1, 0.75),
+                        new RecipeDraft.ExtraOutput("minecraft:gravel", 2, 1.0)));
+        String c2 = KubeJsWriter.renderRecipeCall(cutting, "simple_recipe_change");
+        System.out.println(c2);
+        check("切菜板用命名空间路径", c2.contains("event.recipes.farmersdelight.cutting("));
+        check("绝不写成 event.cutting(", !c2.contains("event.cutting("));
+        check("工具参数", c2.contains("'#minecraft:pickaxes'"));
+        check("主产物在数组里", c2.contains("'minecraft:stone'"));
+        check("概率产物用 ChanceResult", c2.contains("ChanceResult.of('minecraft:flint', 0.75)"));
+        check("满概率的写成普通物品", c2.contains("'2x minecraft:gravel'"));
+
+        List<String> noTool = blank(9);
+        noTool.set(0, "minecraft:cobblestone");
+        RecipeDraft cutting2 = new RecipeDraft(RecipeType.FARMERS_CUTTING, false, true, "",
+                noTool, "minecraft:stone", 1, Operation.ADD, RemoveBy.OUTPUT);
+        check("工具留空时用刀标签",
+                KubeJsWriter.renderRecipeCall(cutting2, "x").contains("#forge:tools/knives"));
+
+        expectError("烹饪锅没有材料时报错", () -> KubeJsWriter.renderRecipeCall(
+                new RecipeDraft(RecipeType.FARMERS_COOKING, false, true, "", blank(9),
+                        "minecraft:stone", 1, Operation.ADD, RemoveBy.OUTPUT), "x"));
     }
 
     // ------------------------------------------------------------ 工具

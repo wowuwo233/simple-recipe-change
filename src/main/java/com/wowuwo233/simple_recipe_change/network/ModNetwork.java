@@ -93,9 +93,11 @@ public final class ModNetwork {
 
     public static void requestSaveRecipe(String fileName, String recipeId, boolean shapeless,
                                          boolean mirrored, int typeOrdinal, int removeByOrdinal,
-                                         double xp, int cookingTime, List<String> inputCells) {
+                                         double xp, int cookingTime, List<String> inputCells,
+                                         List<RecipeDraft.ExtraOutput> extraOutputs) {
         CHANNEL.sendToServer(new SaveRecipePacket(fileName, recipeId, shapeless, mirrored,
-                typeOrdinal, removeByOrdinal, xp, cookingTime, encodeCells(inputCells)));
+                typeOrdinal, removeByOrdinal, xp, cookingTime, encodeCells(inputCells),
+                encodeExtraOutputs(extraOutputs)));
     }
 
     /** 客户端请求重新加载资源（等同 /reload），让 KubeJS 立刻读到刚写好的脚本 */
@@ -139,7 +141,8 @@ public final class ModNetwork {
      *                       「清空」才为 true——否则添加模式下玩家刚放好的原料会被一次又一次清掉
      */
     public static void sendEditorState(ServerPlayer player, RecipeEditorMenu menu,
-                                       List<String> inputCells, boolean replaceInputs) {
+                                       List<String> inputCells, boolean replaceInputs,
+                                       List<RecipeDraft.ExtraOutput> extraOutputs) {
         VanillaRecipeLookup.Found found = menu.getLastFound();
         CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), new EditorStatePacket(
                 menu.getOperation().ordinal(),
@@ -150,7 +153,8 @@ public final class ModNetwork {
                 encodeCells(inputCells),
                 replaceInputs,
                 found == null ? 0D : found.xp(),
-                found == null ? RecipeDraft.DEFAULT_COOKING_TIME : found.cookingTime()));
+                found == null ? RecipeDraft.DEFAULT_COOKING_TIME : found.cookingTime(),
+                encodeExtraOutputs(extraOutputs)));
     }
 
     /** 从「我的配方」载入后推送完整状态，包含要回填到输入框的文本与输入槽材料 */
@@ -160,7 +164,7 @@ public final class ModNetwork {
                 entry.type().ordinal(), entry.shapeless(), entry.mirrored(), true,
                 entry.recipeId(), entry.fileName(), entry.sourceRecipeId(),
                 false, "", encodeCells(entry.cells()), true,
-                entry.xp(), entry.cookingTime()));
+                entry.xp(), entry.cookingTime(), encodeExtraOutputs(entry.extraOutputs())));
     }
 
     /** 写文件属于管理操作：专用服务器要求 OP，单人游戏直接放行 */
@@ -191,6 +195,54 @@ public final class ModNetwork {
         }
         for (String part : encoded.split(",", -1)) {
             out.add(part.isEmpty() ? null : part);
+        }
+        return out;
+    }
+
+    /**
+     * 编码切菜板的额外产物。
+     *
+     * <p>每行一条，格式 {@code 物品ID|数量|概率}；概率是 0–1 的小数。
+     * 空列表编码成空串。
+     */
+    public static String encodeExtraOutputs(List<RecipeDraft.ExtraOutput> list) {
+        if (list == null || list.isEmpty()) {
+            return "";
+        }
+        StringBuilder sb = new StringBuilder();
+        for (RecipeDraft.ExtraOutput e : list) {
+            if (e == null || e.item() == null || e.item().isBlank()) {
+                continue;
+            }
+            if (sb.length() > 0) {
+                sb.append('\n');
+            }
+            sb.append(e.item()).append('|').append(e.count()).append('|').append(e.chance());
+        }
+        return sb.toString();
+    }
+
+    /** {@link #encodeExtraOutputs} 的逆操作；解析不了的行直接跳过 */
+    public static List<RecipeDraft.ExtraOutput> decodeExtraOutputs(String encoded) {
+        List<RecipeDraft.ExtraOutput> out = new ArrayList<>();
+        if (encoded == null || encoded.isEmpty()) {
+            return out;
+        }
+        for (String line : encoded.split("\n", -1)) {
+            if (line.isBlank()) {
+                continue;
+            }
+            String[] parts = line.split("\\|", -1);
+            if (parts.length < 3) {
+                continue;
+            }
+            try {
+                out.add(new RecipeDraft.ExtraOutput(parts[0],
+                        Integer.parseInt(parts[1].trim()),
+                        Double.parseDouble(parts[2].trim())));
+            } catch (NumberFormatException ignored) {
+                // 坏行跳过，不影响其它产物
+            }
         }
         return out;
     }
@@ -280,7 +332,8 @@ public final class ModNetwork {
     public record SaveRecipePacket(String fileName, String recipeId,
                                    boolean shapeless, boolean mirrored,
                                    int typeOrdinal, int removeByOrdinal,
-                                   double xp, int cookingTime, String inputCells) {
+                                   double xp, int cookingTime, String inputCells,
+                                   String extraOutputs) {
 
         public static void encode(SaveRecipePacket msg, FriendlyByteBuf buf) {
             buf.writeUtf(msg.fileName == null ? "" : msg.fileName, 256);
@@ -292,12 +345,13 @@ public final class ModNetwork {
             buf.writeDouble(msg.xp);
             buf.writeVarInt(msg.cookingTime);
             buf.writeUtf(msg.inputCells == null ? "" : msg.inputCells, 2048);
+            buf.writeUtf(msg.extraOutputs == null ? "" : msg.extraOutputs, 2048);
         }
 
         public static SaveRecipePacket decode(FriendlyByteBuf buf) {
             return new SaveRecipePacket(buf.readUtf(256), buf.readUtf(256),
                     buf.readBoolean(), buf.readBoolean(), buf.readVarInt(), buf.readVarInt(),
-                    buf.readDouble(), buf.readVarInt(), buf.readUtf(2048));
+                    buf.readDouble(), buf.readVarInt(), buf.readUtf(2048), buf.readUtf(2048));
         }
 
         public static void handle(SaveRecipePacket msg, Supplier<NetworkEvent.Context> ctxSupplier) {
@@ -333,7 +387,9 @@ public final class ModNetwork {
                         RemoveBy.byOrdinal(msg.removeByOrdinal()),
                         menu.getSourceRecipeId(),
                         msg.xp(),
-                        msg.cookingTime());
+                        msg.cookingTime(),
+                        decodeExtraOutputs(msg.extraOutputs()),
+                        "");
 
                 KubeJsFileWriter.Result result = KubeJsFileWriter.save(draft, msg.fileName());
                 sendSaveResult(player, result.ok(), result.message(), result.path());
@@ -490,7 +546,7 @@ public final class ModNetwork {
                                     String recipeId, String fileName, String sourceRecipeId,
                                     boolean found, String foundSummary, String inputCells,
                                     boolean replaceInputs,
-                                    double xp, int cookingTime) {
+                                    double xp, int cookingTime, String extraOutputs) {
 
         public static void encode(EditorStatePacket msg, FriendlyByteBuf buf) {
             buf.writeVarInt(msg.operationOrdinal);
@@ -507,6 +563,7 @@ public final class ModNetwork {
             buf.writeBoolean(msg.replaceInputs);
             buf.writeDouble(msg.xp);
             buf.writeVarInt(msg.cookingTime);
+            buf.writeUtf(msg.extraOutputs == null ? "" : msg.extraOutputs, 2048);
         }
 
         public static EditorStatePacket decode(FriendlyByteBuf buf) {
@@ -514,7 +571,7 @@ public final class ModNetwork {
                     buf.readBoolean(), buf.readBoolean(), buf.readBoolean(),
                     buf.readUtf(256), buf.readUtf(256), buf.readUtf(256),
                     buf.readBoolean(), buf.readUtf(1024), buf.readUtf(2048),
-                    buf.readBoolean(), buf.readDouble(), buf.readVarInt());
+                    buf.readBoolean(), buf.readDouble(), buf.readVarInt(), buf.readUtf(2048));
         }
 
         public static void handle(EditorStatePacket msg, Supplier<NetworkEvent.Context> ctxSupplier) {

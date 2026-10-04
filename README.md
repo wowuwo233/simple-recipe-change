@@ -3,7 +3,7 @@
 在游戏内可视化编辑配方的 Forge 模组：按 **G 键**打开全中文编辑器，
 可以**添加配方**、**修改已有配方**、**删除配方**，并把结果写成 **KubeJS 可读的脚本**。
 
-当前版本 **1.2.5**。不添加任何物品或方块，只做配方编辑。
+当前版本 **1.4.1**。不添加任何物品或方块，只做配方编辑。
 
 ---
 
@@ -13,8 +13,11 @@
 |---|---|
 | 快捷键 | **G** 打开配方编辑器（可在「选项 → 按键控制」改） |
 | 三个独立模式 | **添加配方 / 修改配方 / 删除配方**，各自一个按钮，不合并 |
-| 配方类型（6 种） | 工作台合成（3×3）、物品栏合成（2×2）、**熔炉**、**高炉**、**烟熏炉**、**锻造台** |
-| 界面随类型变 | 合成类添加模式像合成台（材料 → 产物），修改/删除模式**产物在前**；烧炼是「原料 → 产物」；锻造是「模板 / 基础物品 / 升级物品 → 产物」 |
+| 配方类型（8 种） | **原版 6 种**：工作台合成（3×3）、物品栏合成（2×2）、**熔炉**、**高炉**、**烟熏炉**、**锻造台**<br>**农夫乐事 2 种**：**烹饪锅**、**切菜板** |
+| 类型分组 | **原版和农夫乐事分开选**：「分组」按钮在两组间切换，「类型」按钮只在当前组内循环，不用一路按过去 |
+| 界面随类型变 | 合成类添加模式像合成台（材料 → 产物），修改/删除模式**产物在前**；烧炼是「原料 → 产物」；锻造是「模板 / 基础物品 / 升级物品 → 产物」；烹饪锅是「材料 ×6 + 容器 → 产物」；切菜板是「材料 + 工具 → 产物」 |
+| 切菜板多产物 | 产物格下方有 **4 个额外产物格**，每格右边一个**概率输入框**（0–1，留空为必定产出） |
+| 物品用标签 | **所有类型通用**的「标签：是/否」开关。勾上后输入槽的物品会写成 `#标签`——放石斧就生成 `#minecraft:axes`，钻石斧同样能满足这条配方 |
 | 栏位标注 | **每个槽位下面都写清了是什么**（合成格 / 原料 / 模板 / 基础物品 / 升级物品 / 产物） |
 | 烧炼可配置 | 经验（默认 0）与烧制时间（tick，默认 200）都有输入框 |
 | 原版配方反查 | 放入产物即自动查出对应分类的原版配方并**回填进输入槽**；查不到就不显示配方内容 |
@@ -41,7 +44,7 @@
 | Forge | 47.4.26（1.20.1 推荐版） | 同上 |
 | Java (JDK) | **17**（Oracle JDK 17.0.12） | `C:\Program Files\Java\jdk-17` |
 | Gradle | 8.8 | `D:\DSH work\.gradle-home` |
-| 模组版本 | **1.2.5** | `gradle.properties` → `mod_version` |
+| 模组版本 | **1.4.1** | `gradle.properties` → `mod_version` |
 
 > MC 1.20.1 / Forge 47.x 的编译与运行目标都是 **Java 17**，用 JDK 21 会报 class file version 错误。
 
@@ -50,7 +53,7 @@
 ## 3. 常用命令
 
 ```powershell
-.\dev.ps1 build            # 编译，产物 build\libs\simple_recipe_change-1.2.5.jar
+.\dev.ps1 build            # 编译，产物 build\libs\simple_recipe_change-1.4.1.jar
 .\dev.ps1 runClient        # 启动开发版客户端
 .\dev.ps1 runServer        # 启动开发版服务端
 .\dev.ps1 runData          # 数据生成
@@ -139,7 +142,48 @@ event.smithing(
 ).id('...')
 ```
 
-### 4.6 我的配方
+### 4.6 农夫乐事的两种配方
+
+需要额外安装 **KubeJSDelight**（`kubejsdelight`）——农夫乐事的配方类型是通过它的 KubeJS schema 暴露的。
+
+> ⚠️ **调用路径不是 `event.cooking(...)`**。原版那九种在 KubeJS 里是写死在
+> `RecipesEventJS` 上的字段，所以能写 `event.smelting(...)`；而 mod 提供的类型挂在
+> **命名空间对象**下，必须写成 `event.recipes.farmersdelight.cooking(...)`。
+> 写成 `event.cooking(...)` 在游戏里只会静默报 undefined。
+
+**烹饪锅** —— 材料最多 6 种，容器可选：
+
+```js
+event.recipes.farmersdelight.cooking(
+  [
+    'minecraft:beef',
+    '#forge:vegetables',
+  ],
+  'farmersdelight:beef_stew',
+  1,                 // 经验
+  200,               // 烧制时间 tick
+  'minecraft:bowl'   // 容器（留空则整项不写）
+).id('...')
+```
+
+**切菜板** —— 产物是数组，可以多个；概率小于 1 的用 `ChanceResult`：
+
+```js
+event.recipes.farmersdelight.cutting(
+  'minecraft:cobblestone',
+  '#minecraft:pickaxes',                       // 工具（留空默认 #forge:tools/knives）
+  [
+    'minecraft:stone',                          // 主产物，必定产出
+    ChanceResult.of('minecraft:flint', 0.75),   // 额外产物，75%
+    '2x minecraft:gravel'                       // 概率 1 就写普通物品
+  ]
+).id('...')
+```
+
+> 目前**不支持反查**：修改/删除模式下放产物不会自动查出农夫乐事的原配方，
+> 因为那需要依赖农夫乐事自己的类，本模组不直接依赖它。
+
+### 4.7 我的配方
 
 查看本模组写过的所有配方（列表里显示产物图标、名称、操作类型、文件名）：
 
@@ -398,7 +442,7 @@ mod_id=simple_recipe_change
 mod_name=Simple Recipe Change
 mod_group_id=com.wowuwo233.simple_recipe_change
 mod_authors=wowuwo233
-mod_version=1.2.5
+mod_version=1.4.1
 ```
 
 改动后需同步：主类的 `MODID` 常量、Java 包目录与 `package` 语句、
@@ -425,11 +469,12 @@ mod_version=1.2.5
       `kubejs-forge-2001.6.5-build.26.jar` 逐个确认（方法名、参数顺序、键名），
       结果记在 [§8](#8-第三方配方类型的支持情况)
 - [x] `dev.cmd build` → **BUILD SUCCESSFUL**，`jar` 与 `reobfJar` 都正常执行
-- [x] 产物 `simple_recipe_change-1.2.5.jar`（211.9 KB，**45 个类**）内部结构正确：
-      `mods.toml` 的 `modId=simple_recipe_change` / `version=1.2.5` 与 `gradle.properties` 一致；
+- [x] 产物 `simple_recipe_change-1.4.1.jar`（221.9 KB，**47 个类**）内部结构正确：
+      `mods.toml` 的 `modId=simple_recipe_change` / `version=1.4.1` / `license=GPL-3.0-only`
+      与 `gradle.properties` 一致；
       资源里**无任何示例物品**（MDK 示例物品已清干净），只有 `pack.mcmeta`、两个 lang 文件、
       `mods.toml` 和 189 KB 的 `pinyin.txt`
-- [x] 已输出到工作区：`D:\DSH work\simple_recipe_change-1.2.5.jar`
+- [x] 已输出到工作区：`D:\DSH work\simple_recipe_change-1.4.1.jar`
 
 **此前构建时验证（沿用历史记录，本次未重跑）：**
 
@@ -441,7 +486,7 @@ mod_version=1.2.5
 **仅代码核实（读源码确认，未在游戏里点过）：**
 
 - [x] 12 个网络包全部注册（`ModNetwork.java:54-77`）
-- [x] 11 种配方类型的界面布局随模式/类型切换（`RecipeEditorMenu.java` 的 `layoutSlots`）
+- [x] 8 种配方类型的界面布局随模式/类型切换（`RecipeEditorMenu.java` 的 `layoutSlots`）
 - [x] 输入槽确为不可交互的「展示槽」，产物格是真实槽位（`RecipeEditorMenu.java:107-130`）
 - [x] `#标签` 在反查时保留（`VanillaRecipeLookup.java:248-306`，要求标签内物品数**完全相等**才输出）
 
@@ -451,7 +496,7 @@ mod_version=1.2.5
 > 要让配方真正生效需要额外安装 **KubeJS**（把它的 jar 放进 `mods`）。
 >
 > 工作区里那个 `simple_recipe_change-1.0.0.jar`（56.9 KB）是早期版本残留，可手动删除；
-> **请用 `simple_recipe_change-1.2.5.jar`**。
+> **请用 `simple_recipe_change-1.4.1.jar`**。
 
 ---
 

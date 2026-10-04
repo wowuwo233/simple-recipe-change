@@ -67,10 +67,48 @@ public class RecipeEditorMenu extends AbstractContainerMenu {
     public static final int COOK_OUTPUT_X = 74;
 
     /** 锻造：模板、基础物品、升级物品 → 产物（三者都必填） */
-    public static final int SMITH_TEMPLATE_X = 16;
-    public static final int SMITH_BASE_X = 60;
+    public static final int SMITH_TEMPLATE_X = 16;    public static final int SMITH_BASE_X = 60;
     public static final int SMITH_ADDITION_X = 104;
     public static final int SMITH_OUTPUT_X = 176;
+
+    /**
+     * 农夫乐事 · 烹饪锅：照原版界面摆成 3×2 材料网格，容器放在网格右侧的第二行。
+     *
+     * <p>这样材料和产物都在左边，不会跑到右边去跟「获得经验 / 烧制时间」两个输入框打架。
+     */
+    public static final int COOK_GRID_X = 16;
+    public static final int COOK_GRID_Y = 76;
+    public static final int COOK_CONTAINER_X = 88;
+    public static final int COOK_CONTAINER_Y = 94;
+
+    /** 农夫乐事 · 切菜板：材料与工具分开摆，别挤在一起 */
+    public static final int CUT_INPUT_X = 16;
+    public static final int CUT_TOOL_X = 76;
+    public static final int CUT_ROW_Y = 94;
+
+    public static final int FARMERS_OUTPUT_X = 120;
+    public static final int FARMERS_OUTPUT_Y = 94;
+
+    /**
+     * 农夫乐事所有槽位标注共用的 y。
+     *
+     * <p>统一画在槽位<b>下方</b>，和原版那些类型保持一致——之前有上有下，
+     * 而且画在槽上方时会顶到搜索框（搜索框占 46..64）。
+     */
+    public static final int FARMERS_LABEL_Y = 115;
+
+    /** 切菜板的额外产物：4 个槽 + 4 个概率输入框，全部排在标注行下面 */
+    public static final int EXTRA_OUTPUT_COUNT = 4;
+    /** 额外产物借用容器里空着的下标（切菜板材料只用 0、1） */
+    public static final int EXTRA_OUTPUT_CONTAINER_BASE = 2;
+    public static final int EXTRA_ROW_Y = 127;
+    public static final int EXTRA_SLOT_X0 = 12;
+    public static final int EXTRA_SLOT_STEP = 80;
+
+    /** 「物品用标签」开关的位置（在下面那排按钮的最右边） */
+    public static final int TAG_BUTTON_X = 268;
+    public static final int TAG_BUTTON_Y = 218;
+    public static final int TAG_BUTTON_W = 60;
 
     /** 玩家背包 */
     public static final int PLAYER_X = 89;
@@ -184,6 +222,31 @@ public class RecipeEditorMenu extends AbstractContainerMenu {
                 place(new DisplaySlot(this.placeholder, 2, SMITH_ADDITION_X, ROW_Y), firstTime);
                 place(new EditorSlot(this.output, 0, SMITH_OUTPUT_X, ROW_Y), firstTime);
             }
+            case FARMERS -> {
+                if (recipeType == RecipeType.FARMERS_COOKING) {
+                    // 3×2 材料网格（下标 0..5，行优先），照原版烹饪锅的样子
+                    for (int i = 0; i < 6; i++) {
+                        place(new DisplaySlot(this.placeholder, i,
+                                COOK_GRID_X + (i % 3) * SLOT_SIZE,
+                                COOK_GRID_Y + (i / 3) * SLOT_SIZE), firstTime);
+                    }
+                    // 容器单独放网格下面一行（下标 6，可留空）
+                    place(new DisplaySlot(this.placeholder, 6,
+                            COOK_CONTAINER_X, COOK_CONTAINER_Y), firstTime);
+                } else {
+                    // 切菜板：材料 0、工具 1，分开摆
+                    place(new DisplaySlot(this.placeholder, 0, CUT_INPUT_X, CUT_ROW_Y), firstTime);
+                    place(new DisplaySlot(this.placeholder, 1, CUT_TOOL_X, CUT_ROW_Y), firstTime);
+                }
+                place(new EditorSlot(this.output, 0, FARMERS_OUTPUT_X, FARMERS_OUTPUT_Y), firstTime);
+
+                // 额外产物只有切菜板有，排在下面一行（纯展示槽，内容由客户端维护）
+                int extra = extraOutputCount();
+                for (int i = 0; i < extra; i++) {
+                    place(new DisplaySlot(this.placeholder, EXTRA_OUTPUT_CONTAINER_BASE + i,
+                            EXTRA_SLOT_X0 + i * EXTRA_SLOT_STEP, EXTRA_ROW_Y), firstTime);
+                }
+            }
         }
 
         for (int row = 0; row < 3; row++) {
@@ -252,12 +315,23 @@ public class RecipeEditorMenu extends AbstractContainerMenu {
             case CRAFTING -> GRID_SIZE;
             case COOKING -> 1;
             case SMITHING -> 3;
+            case FARMERS -> recipeType.inputSlotCount();
         };
     }
 
     /** 产物格在 slots 列表里的下标（紧跟输入槽之后） */
     public int outputMenuIndex() {
         return inputMenuCount();
+    }
+
+    /** 额外产物槽的数量（只有切菜板有） */
+    public int extraOutputCount() {
+        return recipeType.hasMultipleOutputs() ? EXTRA_OUTPUT_COUNT : 0;
+    }
+
+    /** 玩家背包槽在 slots 列表里的起点（输入槽 → 产物格 → 额外产物 → 背包） */
+    public int playerMenuStart() {
+        return outputMenuIndex() + 1 + extraOutputCount();
     }
 
     // ------------------------------------------------------------------ 模式
@@ -272,7 +346,7 @@ public class RecipeEditorMenu extends AbstractContainerMenu {
             this.lastFound = null;
             this.sourceRecipeId = "";
             // 添加模式服务端没有材料数据，绝不能覆盖客户端已放好的原料
-            ModNetwork.sendEditorState(player, this, List.of(), false);
+            ModNetwork.sendEditorState(player, this, List.of(), false, List.of());
             return;
         }
         handleOutputChanged(player);
@@ -310,7 +384,7 @@ public class RecipeEditorMenu extends AbstractContainerMenu {
         // 否则添加模式下「先放原料、再放产物」会把刚放好的原料清掉
         boolean replace = this.lastFound != null;
         ModNetwork.sendEditorState(player, this,
-                replace ? this.lastFound.cells() : List.of(), replace);
+                replace ? this.lastFound.cells() : List.of(), replace, List.of());
     }
 
     // ------------------------------------------------------------------ 载入已有配方
@@ -342,7 +416,7 @@ public class RecipeEditorMenu extends AbstractContainerMenu {
         this.lastFound = null;
         this.sourceRecipeId = "";
         if (player instanceof ServerPlayer serverPlayer) {
-            ModNetwork.sendEditorState(serverPlayer, this, List.of(), true);
+            ModNetwork.sendEditorState(serverPlayer, this, List.of(), true, List.of());
         }
     }
 
@@ -387,7 +461,7 @@ public class RecipeEditorMenu extends AbstractContainerMenu {
 
         ItemStack stack = slot.getItem();
         ItemStack original = stack.copy();
-        int playerStart = outputMenuIndex() + 1;
+        int playerStart = playerMenuStart();
 
         if (index == outputMenuIndex()) {
             if (!this.moveItemStackTo(stack, playerStart, this.slots.size(), true)) {

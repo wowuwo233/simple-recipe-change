@@ -28,12 +28,16 @@ public record RecipeIndexEntry(
         int outputCount,
         List<String> cells,
         double xp,
-        int cookingTime
+        int cookingTime,
+        List<RecipeDraft.ExtraOutput> extraOutputs
 ) {
     public RecipeIndexEntry {
         cells = cells == null
                 ? Collections.emptyList()
                 : Collections.unmodifiableList(new ArrayList<>(cells));
+        extraOutputs = extraOutputs == null
+                ? Collections.emptyList()
+                : Collections.unmodifiableList(new ArrayList<>(extraOutputs));
         if (outputItem == null) {
             outputItem = "";
         }
@@ -53,7 +57,7 @@ public record RecipeIndexEntry(
                             boolean shapeless, boolean mirrored, String recipeId, String sourceRecipeId,
                             String outputItem, int outputCount, List<String> cells) {
         this(blockId, fileName, operation, type, shapeless, mirrored, recipeId, sourceRecipeId,
-                outputItem, outputCount, cells, 0D, RecipeDraft.DEFAULT_COOKING_TIME);
+                outputItem, outputCount, cells, 0D, RecipeDraft.DEFAULT_COOKING_TIME, List.of());
     }
 
     public static RecipeIndexEntry fromDraft(String blockId, String fileName, RecipeDraft draft) {
@@ -64,7 +68,7 @@ public record RecipeIndexEntry(
         return new RecipeIndexEntry(blockId, fileName, draft.operation(), draft.type(),
                 draft.shapeless(), draft.mirrored(), draft.recipeId(), draft.sourceRecipeId(),
                 draft.outputItem() == null ? "" : draft.outputItem(), draft.outputCount(), cells,
-                draft.xp(), draft.cookingTime());
+                draft.xp(), draft.cookingTime(), draft.extraOutputs());
     }
 
     /** 还原成编辑器用的草稿 */
@@ -75,7 +79,7 @@ public record RecipeIndexEntry(
         }
         return new RecipeDraft(type, shapeless, mirrored, recipeId, copy,
                 outputItem.isBlank() ? null : outputItem, outputCount, operation, RemoveBy.OUTPUT,
-                sourceRecipeId, xp, cookingTime);
+                sourceRecipeId, xp, cookingTime, extraOutputs, "");
     }
 
     public JsonObject toJson() {
@@ -97,6 +101,17 @@ public record RecipeIndexEntry(
             arr.add(c == null ? JsonNull.INSTANCE : new com.google.gson.JsonPrimitive(c));
         }
         o.add("cells", arr);
+
+        // 切菜板的额外产物（含概率）；其它类型是空数组
+        JsonArray extras = new JsonArray();
+        for (RecipeDraft.ExtraOutput e : extraOutputs) {
+            JsonObject eo = new JsonObject();
+            eo.addProperty("item", e.item());
+            eo.addProperty("count", e.count());
+            eo.addProperty("chance", e.chance());
+            extras.add(eo);
+        }
+        o.add("extraOutputs", extras);
         return o;
     }
 
@@ -106,6 +121,20 @@ public record RecipeIndexEntry(
         if (cellsEl != null && cellsEl.isJsonArray()) {
             for (JsonElement e : cellsEl.getAsJsonArray()) {
                 cells.add(e.isJsonNull() ? null : e.getAsString());
+            }
+        }
+        List<RecipeDraft.ExtraOutput> extras = new ArrayList<>();
+        JsonElement extrasEl = o.get("extraOutputs");
+        if (extrasEl != null && extrasEl.isJsonArray()) {
+            for (JsonElement e : extrasEl.getAsJsonArray()) {
+                if (!e.isJsonObject()) {
+                    continue;
+                }
+                JsonObject eo = e.getAsJsonObject();
+                extras.add(new RecipeDraft.ExtraOutput(
+                        str(eo, "item"),
+                        eo.has("count") ? eo.get("count").getAsInt() : 1,
+                        eo.has("chance") ? eo.get("chance").getAsDouble() : 1D));
             }
         }
         return new RecipeIndexEntry(
@@ -121,7 +150,8 @@ public record RecipeIndexEntry(
                 o.has("outputCount") ? o.get("outputCount").getAsInt() : 0,
                 cells,
                 o.has("xp") ? o.get("xp").getAsDouble() : 0D,
-                o.has("cookingTime") ? o.get("cookingTime").getAsInt() : RecipeDraft.DEFAULT_COOKING_TIME);
+                o.has("cookingTime") ? o.get("cookingTime").getAsInt() : RecipeDraft.DEFAULT_COOKING_TIME,
+                extras);
     }
 
     private static String str(JsonObject o, String key) {

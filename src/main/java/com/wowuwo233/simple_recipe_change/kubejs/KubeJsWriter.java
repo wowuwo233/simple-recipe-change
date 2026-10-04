@@ -126,6 +126,13 @@ public final class KubeJsWriter {
             }
             case COOKING -> appendCooking(sb, d, output);
             case SMITHING -> appendSmithing(sb, d, output);
+            case FARMERS -> {
+                if (d.type() == RecipeType.FARMERS_COOKING) {
+                    appendFarmersCooking(sb, d, output);
+                } else {
+                    appendFarmersCutting(sb, d, output);
+                }
+            }
         }
 
         sb.append(".id('").append(recipeId).append("')");
@@ -175,6 +182,96 @@ public final class KubeJsWriter {
         sb.append("  '").append(base).append("',\n");
         sb.append("  '").append(addition).append("'\n");
         sb.append(")");
+    }
+
+    /**
+     * 农夫乐事 · 烹饪锅。
+     *
+     * <p>KubeJSDelight 注册的是 {@code farmersdelight:cooking}，它挂在命名空间对象下，
+     * 所以调用必须写成 {@code event.recipes.farmersdelight.cooking(...)}——
+     * 写成 {@code event.cooking(...)} 在游戏里是 undefined。
+     *
+     * <p>参数顺序（来自 KubeJSDelight 1.1.2 的 schema）：
+     * 材料数组 → 产物 → 经验 → 烧制时间(tick) → 容器(可选)。
+     * 材料格是前 6 个槽，第 7 个槽是容器；容器留空就整个不写。
+     */
+    private static void appendFarmersCooking(StringBuilder sb, RecipeDraft d, String output) {
+        List<String> in = d.inputCells();
+        List<String> ingredients = new ArrayList<>();
+        String container = null;
+        for (int i = 0; i < 7 && i < in.size(); i++) {
+            String c = in.get(i);
+            if (c == null || c.isBlank()) {
+                continue;
+            }
+            if (i == 6) {
+                container = c;
+            } else {
+                ingredients.add(c);
+            }
+        }
+        if (ingredients.isEmpty()) {
+            throw new IllegalArgumentException("请至少放入一种材料");
+        }
+
+        sb.append("event.recipes.farmersdelight.cooking(\n");
+        sb.append("  [\n");
+        for (String ing : ingredients) {
+            sb.append("    '").append(ing).append("',\n");
+        }
+        sb.append("  ],\n");
+        sb.append("  ").append(output).append(",\n");
+        sb.append("  ").append(formatNumber(d.xp())).append(",\n");
+        sb.append("  ").append(d.cookingTime());
+        if (container != null) {
+            sb.append(",\n  '").append(container).append("'\n");
+        } else {
+            sb.append("\n");
+        }
+        sb.append(")");
+    }
+
+    /**
+     * 农夫乐事 · 切菜板。
+     *
+     * <p>参数顺序：材料 → 工具 → 产物数组 → 音效(可选)。
+     * 产物数组里第一项是主产物（100%），其余是额外产物，
+     * 概率小于 1 的写成 {@code ChanceResult.of('物品', 0.75)}。
+     */
+    private static void appendFarmersCutting(StringBuilder sb, RecipeDraft d, String output) {
+        List<String> in = d.inputCells();
+        String input = nthNonBlank(in, 0, "请把要切的材料放进材料格");
+        String tool = in.size() > 1 ? in.get(1) : null;
+        if (tool == null || tool.isBlank()) {
+            // 农夫乐事所有刀都带这个标签，留空时的合理默认
+            tool = "#forge:tools/knives";
+        }
+
+        sb.append("event.recipes.farmersdelight.cutting(\n");
+        sb.append("  '").append(input).append("',\n");
+        sb.append("  '").append(tool).append("',\n");
+        sb.append("  [\n");
+        sb.append("    ").append(output);
+        for (RecipeDraft.ExtraOutput extra : d.extraOutputs()) {
+            if (extra == null || extra.item() == null || extra.item().isBlank()) {
+                continue;
+            }
+            sb.append(",\n    ").append(chanceResult(extra));
+        }
+        sb.append("\n  ]");
+        if (d.sound() != null && !d.sound().isBlank()) {
+            sb.append(",\n  '").append(d.sound()).append("'");
+        }
+        sb.append("\n)");
+    }
+
+    /** 额外产物：概率满 1 就写普通物品，否则用 ChanceResult 包一层 */
+    private static String chanceResult(RecipeDraft.ExtraOutput extra) {
+        String item = extra.count() > 1 ? extra.count() + "x " + extra.item() : extra.item();
+        if (extra.chance() >= 1D) {
+            return "'" + item + "'";
+        }
+        return "ChanceResult.of('" + item + "', " + formatNumber(extra.chance()) + ")";
     }
 
     private static String firstNonBlank(List<String> cells, String error) {

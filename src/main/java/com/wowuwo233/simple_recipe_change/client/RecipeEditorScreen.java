@@ -1,6 +1,7 @@
 package com.wowuwo233.simple_recipe_change.client;
 
 import com.mojang.blaze3d.platform.InputConstants;
+import com.wowuwo233.simple_recipe_change.ModCompat;
 import com.wowuwo233.simple_recipe_change.kubejs.KubeJsWriter;
 import com.wowuwo233.simple_recipe_change.kubejs.Operation;
 import com.wowuwo233.simple_recipe_change.kubejs.RecipeDraft;
@@ -101,6 +102,15 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
 
     private final Button[] modeButtons = new Button[3];
     private Button secondaryButton;
+    /** 「原版 / 农夫乐事」分组切换；类型按钮只在当前分组内循环 */
+    private Button groupButton;
+    /**
+     * 所有类型通用：勾上之后，输入槽里的物品会写成<b>标签</b>而不是具体物品。
+     *
+     * <p>比如放石斧就生成 {@code #minecraft:axes}，这样钻石斧也同样能满足这条配方。
+     */
+    private Button tagButton;
+    private boolean useItemTags = false;
     private Button shapelessButton;
     private Button mirrorButton;
     private Button saveButton;
@@ -115,12 +125,63 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
     private boolean inventorySource = false;
     private ItemSearch.Entry hoveredResult;
 
+    /** 切菜板的额外产物（客户端维护的展示数据，最多 4 个） */
+    private List<String> extraItems = blankExtras();
+    /** 每个额外产物右边的概率输入框（0–1，留空按 1 处理） */
+    private final List<EditBox> extraChanceFields = new ArrayList<>();
+
     public RecipeEditorScreen(RecipeEditorMenu menu, Inventory playerInventory, Component title) {
         super(menu, playerInventory, title);
         this.imageWidth = RecipeEditorMenu.IMAGE_WIDTH;
         this.imageHeight = RecipeEditorMenu.IMAGE_HEIGHT;
         this.recipeType = menu.getRecipeType();
+        // 兜底：万一类型停在没装的分组上（比如整合包中途去掉了农夫乐事），退回原版
+        if (!ModCompat.available(this.recipeType.group())) {
+            this.recipeType = RecipeType.firstOf(RecipeType.Group.VANILLA);
+        }
         this.operation = menu.getOperation();
+    }
+
+    private static List<String> blankExtras() {
+        List<String> list = new ArrayList<>(RecipeEditorMenu.EXTRA_OUTPUT_COUNT);
+        for (int i = 0; i < RecipeEditorMenu.EXTRA_OUTPUT_COUNT; i++) {
+            list.add(null);
+        }
+        return list;
+    }
+
+    private void setExtra(int index, String itemId) {
+        while (this.extraItems.size() <= index) {
+            this.extraItems.add(null);
+        }
+        this.extraItems.set(index, itemId);
+    }
+
+    /** 把额外产物格 + 概率框收成列表；概率留空或写坏了都按 1 处理 */
+    private List<RecipeDraft.ExtraOutput> collectExtraOutputs() {
+        List<RecipeDraft.ExtraOutput> out = new ArrayList<>();
+        if (!this.recipeType.hasMultipleOutputs()) {
+            return out;
+        }
+        for (int i = 0; i < this.extraItems.size(); i++) {
+            String item = this.extraItems.get(i);
+            if (item == null || item.isBlank()) {
+                continue;
+            }
+            double chance = 1D;
+            if (i < this.extraChanceFields.size()) {
+                String text = this.extraChanceFields.get(i).getValue().trim();
+                if (!text.isEmpty()) {
+                    try {
+                        chance = Double.parseDouble(text);
+                    } catch (NumberFormatException ignored) {
+                        chance = 1D;
+                    }
+                }
+            }
+            out.add(new RecipeDraft.ExtraOutput(item, 1, chance));
+        }
+        return out;
     }
 
     private static List<String> blankInputs() {
@@ -179,7 +240,12 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
 
         this.secondaryButton = this.addRenderableWidget(Button.builder(
                         Component.literal(secondaryLabel()), b -> cycleSecondary())
-                .bounds(this.leftPos + 12, this.topPos + CONTROLS_Y, 100, 20)
+                .bounds(this.leftPos + 12, this.topPos + CONTROLS_Y, 80, 20)
+                .build());
+
+        this.groupButton = this.addRenderableWidget(Button.builder(
+                        Component.literal(groupLabel()), b -> cycleGroup())
+                .bounds(this.leftPos + 96, this.topPos + CONTROLS_Y, 80, 20)
                 .build());
 
         this.shapelessButton = this.addRenderableWidget(Button.builder(
@@ -187,7 +253,7 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
                             this.shapeless = !this.shapeless;
                             refreshButtonStates();
                         })
-                .bounds(this.leftPos + 118, this.topPos + CONTROLS_Y, 100, 20)
+                .bounds(this.leftPos + 180, this.topPos + CONTROLS_Y, 74, 20)
                 .build());
 
         this.mirrorButton = this.addRenderableWidget(Button.builder(
@@ -195,7 +261,7 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
                             this.mirrored = !this.mirrored;
                             refreshButtonStates();
                         })
-                .bounds(this.leftPos + 224, this.topPos + CONTROLS_Y, 104, 20)
+                .bounds(this.leftPos + 258, this.topPos + CONTROLS_Y, 70, 20)
                 .build());
 
         // 烧炼专用的经验与时间
@@ -226,15 +292,39 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
         this.fileField.setValue(KubeJsWriter.DEFAULT_FILE_NAME);
         this.addRenderableWidget(this.fileField);
 
+        // 切菜板的额外产物：每个槽右边一个概率框，非切菜板类型整体隐藏
+        this.extraChanceFields.clear();
+        for (int i = 0; i < RecipeEditorMenu.EXTRA_OUTPUT_COUNT; i++) {
+            EditBox box = new EditBox(this.font,
+                    this.leftPos + RecipeEditorMenu.EXTRA_SLOT_X0
+                            + i * RecipeEditorMenu.EXTRA_SLOT_STEP + 20,
+                    this.topPos + RecipeEditorMenu.EXTRA_ROW_Y, 56, 18,
+                    Component.literal("概率"));
+            box.setMaxLength(6);
+            box.setValue("1");
+            this.extraChanceFields.add(this.addRenderableWidget(box));
+        }
+
+        // 「物品用标签」开关：所有类型都有，可以把输入槽物品换成同标签的任意物品
+        this.tagButton = this.addRenderableWidget(Button.builder(
+                        Component.literal(tagButtonLabel()), b -> {
+                            this.useItemTags = !this.useItemTags;
+                            refreshButtonStates();
+                        })
+                .bounds(this.leftPos + RecipeEditorMenu.TAG_BUTTON_X,
+                        this.topPos + RecipeEditorMenu.TAG_BUTTON_Y,
+                        RecipeEditorMenu.TAG_BUTTON_W, 20)
+                .build());
+
         this.saveButton = this.addRenderableWidget(Button.builder(Component.literal("保存并写入"), b -> save())
-                .bounds(this.leftPos + 12, this.topPos + BUTTONS_Y, 100, 20)
+                .bounds(this.leftPos + 12, this.topPos + BUTTONS_Y, 84, 20)
                 .build());
 
         this.reloadButton = this.addRenderableWidget(Button.builder(Component.literal("重载脚本"), b -> {
                     ModNetwork.requestReload();
                     setStatus(true, "已请求重载，KubeJS 会重新读取脚本");
                 })
-                .bounds(this.leftPos + 118, this.topPos + BUTTONS_Y, 100, 20)
+                .bounds(this.leftPos + 100, this.topPos + BUTTONS_Y, 84, 20)
                 .build());
 
         this.clearButton = this.addRenderableWidget(Button.builder(Component.literal("清空编辑区"), b -> {
@@ -242,7 +332,7 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
                     this.inputItems = blankInputs();
                     setStatus(true, "已清空编辑区");
                 })
-                .bounds(this.leftPos + 224, this.topPos + BUTTONS_Y, 104, 20)
+                .bounds(this.leftPos + 188, this.topPos + BUTTONS_Y, 76, 20)
                 .build());
 
         applySlotLayout();
@@ -268,6 +358,7 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
         }
         this.recipeType = this.recipeType.next();
         this.inputItems = blankInputs();
+        this.extraItems = blankExtras();
         ModNetwork.requestSetMode(this.operation, this.recipeType);
         applySlotLayout();
         refreshButtonStates();
@@ -290,6 +381,14 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
         if (this.secondaryButton != null) {
             this.secondaryButton.setMessage(Component.literal(secondaryLabel()));
         }
+        if (this.groupButton != null) {
+            // 没装农夫乐事 / KubeJSDelight 时只有一个分组，按钮置灰
+            this.groupButton.active = ModCompat.hasMultipleGroups();
+            this.groupButton.setMessage(Component.literal(groupLabel()));
+        }
+        if (this.tagButton != null) {
+            this.tagButton.setMessage(Component.literal(tagButtonLabel()));
+        }
         boolean adding = this.operation == Operation.ADD;
         boolean crafting = this.recipeType.isCrafting();
         if (this.shapelessButton != null) {
@@ -307,6 +406,97 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
             return "依据：" + this.removeBy.label();
         }
         return "类型：" + this.recipeType.shortLabel();
+    }
+
+    /**
+     * 切换来源分组：原版 ←→ 农夫乐事。
+     *
+     * <p>切过去之后停在目标分组的第一个类型上；「类型」按钮只在组内循环，
+     * 不用从工作台一路按到烹饪锅。
+     */
+    private void cycleGroup() {
+        // 只切到「装了」的分组；一个分组都没得选（只有原版）时按钮是灰的，这里再兜一层
+        RecipeType.Group from = this.recipeType.group();
+        RecipeType.Group target = from;
+        for (int i = 0; i < RecipeType.Group.values().length; i++) {
+            target = target.next();
+            if (ModCompat.available(target)) {
+                break;
+            }
+        }
+        if (target == from) {
+            return;
+        }
+        this.recipeType = RecipeType.firstOf(target);
+        this.inputItems = blankInputs();
+        this.extraItems = blankExtras();
+        ModNetwork.requestSetMode(this.operation, this.recipeType);
+        applySlotLayout();
+        refreshButtonStates();
+        updateWidgetVisibility();
+    }
+
+    private String groupLabel() {
+        return "分组：" + this.recipeType.group().label();
+    }
+
+    private String tagButtonLabel() {
+        return "标签：" + (this.useItemTags ? "是" : "否");
+    }
+
+    /**
+     * 把一个物品换成「同标签的任意物品」写法。
+     *
+     * <p>生成的脚本里会写成 {@code #minecraft:axes} 这类标签，于是钻石斧也能满足
+     * 用石斧写的配方。标签按「越常用越优先」排：原版 {@code minecraft:*} →
+     * Forge 子分类 {@code forge:*\/*} → Forge 顶层 → 其它模组。
+     *
+     * <p>一个标签都没有时返回 {@code null}，保持具体物品不变。
+     */
+    private String tagForItem(String itemId) {
+        if (itemId == null || itemId.isBlank() || itemId.startsWith("#")) {
+            return null;
+        }
+        ResourceLocation key = ResourceLocation.tryParse(itemId);
+        if (key == null) {
+            return null;
+        }
+        net.minecraft.world.item.Item item = ForgeRegistries.ITEMS.getValue(key);
+        if (item == null) {
+            return null;
+        }
+        List<String> tags = new ArrayList<>();
+        new ItemStack(item).getTags().forEach(t -> tags.add(t.location().toString()));
+        if (tags.isEmpty()) {
+            return null;
+        }
+        tags.sort(java.util.Comparator
+                .comparingInt(RecipeEditorScreen::tagPriority)
+                .thenComparing(java.util.Comparator.naturalOrder()));
+        return "#" + tags.get(0);
+    }
+
+    /** 标签优先级：数字越小越优先。原版那批「any X」标签最通用，所以排最前 */
+    private static int tagPriority(String tag) {
+        int colon = tag.indexOf(':');
+        if (colon <= 0) {
+            return 5;
+        }
+        String ns = tag.substring(0, colon);
+        boolean sub = tag.indexOf('/', colon + 1) > colon;
+        if ("minecraft".equals(ns) && !sub) {
+            return 0;
+        }
+        if ("forge".equals(ns) && sub) {
+            return 1;
+        }
+        if ("forge".equals(ns)) {
+            return 2;
+        }
+        if (!sub) {
+            return 3;
+        }
+        return 4;
     }
 
     private String secondaryCaption() {
@@ -335,7 +525,7 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
                 button.visible = visible;
             }
         }
-        for (Button button : new Button[]{secondaryButton, shapelessButton, mirrorButton,
+        for (Button button : new Button[]{secondaryButton, groupButton, shapelessButton, mirrorButton,
                 saveButton, reloadButton, clearButton}) {
             if (button != null) {
                 button.visible = visible;
@@ -366,6 +556,20 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
             if (!timeField.visible) {
                 timeField.setFocused(false);
             }
+        }
+
+        // 额外产物只属于切菜板
+        boolean extra = visible && this.recipeType.hasMultipleOutputs();
+        for (EditBox box : this.extraChanceFields) {
+            box.visible = extra;
+            if (!extra) {
+                box.setFocused(false);
+            }
+        }
+
+        // 「物品用标签」开关所有类型都有
+        if (this.tagButton != null) {
+            this.tagButton.visible = visible;
         }
 
         if (visible && this.searchField != null) {
@@ -409,6 +613,18 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
             this.inputItems = blankInputs();
             for (int i = 0; i < Math.min(9, cells.size()); i++) {
                 this.inputItems.set(i, cells.get(i));
+            }
+            // 额外产物跟着一起回填（切菜板专用）
+            this.extraItems = blankExtras();
+            List<RecipeDraft.ExtraOutput> extras =
+                    ModNetwork.decodeExtraOutputs(msg.extraOutputs());
+            for (int i = 0; i < extras.size() && i < this.extraItems.size(); i++) {
+                RecipeDraft.ExtraOutput extra = extras.get(i);
+                this.extraItems.set(i, extra.item());
+                if (i < this.extraChanceFields.size()) {
+                    this.extraChanceFields.get(i)
+                            .setValue(KubeJsWriter.formatNumber(extra.chance()));
+                }
             }
         }
 
@@ -539,10 +755,13 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
             graphics.drawString(this.font, labels[0], first.x,
                     RecipeEditorMenu.CRAFT_GRID_Y + 3 * RecipeEditorMenu.SLOT_SIZE + 3,
                     COLOR_SLOT_LABEL, false);
+        } else if (this.recipeType.isFarmers()) {
+            drawFarmersLabels(graphics);
         } else {
+            // 用 slot.y 而不是固定的 ROW_Y：农夫乐事之外的类型也可能把行挪走
             for (int i = 0; i < inputs && i < labels.length; i++) {
                 Slot slot = this.menu.slots.get(i);
-                graphics.drawString(this.font, labels[i], slot.x, RecipeEditorMenu.ROW_Y + 22,
+                graphics.drawString(this.font, labels[i], slot.x, slot.y + 22,
                         COLOR_SLOT_LABEL, false);
             }
         }
@@ -550,6 +769,31 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
         Slot output = this.menu.slots.get(this.menu.outputMenuIndex());
         graphics.drawString(this.font, this.recipeType.outputLabel(), output.x,
                 output.y + 22, COLOR_SLOT_LABEL, false);
+    }
+
+    /**
+     * 农夫乐事的槽位标注。
+     *
+     * <p>烹饪锅的材料是 3×2 网格、容器另起一行，没法像其它类型那样「每个槽下面一行字」——
+     * 那样标注会撒得到处都是，还会和右边的经验/时间输入框挤在一起。
+     * 改成每组只标一次，标在组的上方。
+     */
+    private void drawFarmersLabels(GuiGraphics graphics) {
+        int ly = RecipeEditorMenu.FARMERS_LABEL_Y;
+        if (this.recipeType == RecipeType.FARMERS_COOKING) {
+            graphics.drawString(this.font, "材料", RecipeEditorMenu.COOK_GRID_X, ly,
+                    COLOR_SLOT_LABEL, false);
+            // 容器槽在 x=88，但「容器(可空)」有 46px 宽，按槽位对齐会压到右边的「产物」（x=120）
+            graphics.drawString(this.font, "容器(可空)", RecipeEditorMenu.COOK_CONTAINER_X - 18, ly,
+                    COLOR_SLOT_LABEL, false);
+        } else {
+            graphics.drawString(this.font, "材料", RecipeEditorMenu.CUT_INPUT_X, ly,
+                    COLOR_SLOT_LABEL, false);
+            graphics.drawString(this.font, "工具", RecipeEditorMenu.CUT_TOOL_X, ly,
+                    COLOR_SLOT_LABEL, false);
+            // 额外产物在下面一行，概率填在每格右边——提示跟在同行，不另起一行
+            graphics.drawString(this.font, "额外产物 ↓ 右侧填概率", 170, ly, COLOR_TEXT_DIM, false);
+        }
     }
 
     /** 原版配方信息：材料已经回填在输入槽里，这里只给一行类型说明 */
@@ -593,6 +837,24 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
                         ? this.inputItems.get(cell) : null);
                 if (!ghost.isEmpty()) {
                     graphics.renderItem(ghost, x + slot.x, y + slot.y);
+                }
+            }
+
+            // 切菜板的额外产物：同样由客户端画，右边那个框填概率
+            // （提示文字统一在 drawFarmersLabels 里画在标注那一行，不另起一行挤位置）
+            if (this.recipeType.hasMultipleOutputs()) {
+                int base = this.menu.outputMenuIndex() + 1;
+                for (int i = 0; i < RecipeEditorMenu.EXTRA_OUTPUT_COUNT; i++) {
+                    int slotIndex = base + i;
+                    if (slotIndex >= this.menu.slots.size()) {
+                        break;
+                    }
+                    Slot slot = this.menu.slots.get(slotIndex);
+                    ItemStack ghost = RecipeEditorMenu.stackOf(i < this.extraItems.size()
+                            ? this.extraItems.get(i) : null);
+                    if (!ghost.isEmpty()) {
+                        graphics.renderItem(ghost, x + slot.x, y + slot.y);
+                    }
                 }
             }
         }
@@ -763,6 +1025,28 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
             return true;
         }
 
+        // 切菜板的额外产物格：同一个交互——拿东西点一下放，空手点或右键清空
+        if (this.recipeType.hasMultipleOutputs()) {
+            int base = this.menu.outputMenuIndex() + 1;
+            for (int i = 0; i < RecipeEditorMenu.EXTRA_OUTPUT_COUNT; i++) {
+                int slotIndex = base + i;
+                if (slotIndex >= this.menu.slots.size()) {
+                    break;
+                }
+                Slot slot = this.menu.slots.get(slotIndex);
+                if (!isHovering(slot.x, slot.y, 16, 16, mouseX, mouseY)) {
+                    continue;
+                }
+                if (button == 1) {
+                    setExtra(i, null);
+                } else {
+                    ItemStack carried = this.menu.getCarried();
+                    setExtra(i, carried.isEmpty() ? null : itemId(carried));
+                }
+                return true;
+            }
+        }
+
         return super.mouseClicked(mouseX, mouseY, button);
     }
 
@@ -873,6 +1157,16 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
     // ------------------------------------------------------------------ 保存
 
     private void save() {
+        // 勾了「物品用标签」就把所有输入槽物品换成标签，让同类物品都能用
+        List<String> cells = new ArrayList<>(this.inputItems);
+        if (this.useItemTags) {
+            for (int i = 0; i < cells.size(); i++) {
+                String tag = tagForItem(cells.get(i));
+                if (tag != null) {
+                    cells.set(i, tag);
+                }
+            }
+        }
         ModNetwork.requestSaveRecipe(
                 this.fileField.getValue(),
                 this.idField.getValue(),
@@ -882,7 +1176,8 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
                 this.removeBy.ordinal(),
                 parseXp(),
                 parseCookingTime(),
-                this.inputItems);
+                cells,
+                collectExtraOutputs());
         setStatus(true, "正在写入…");
     }
 

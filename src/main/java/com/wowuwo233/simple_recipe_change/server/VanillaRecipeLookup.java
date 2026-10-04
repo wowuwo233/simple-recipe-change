@@ -90,6 +90,8 @@ public final class VanillaRecipeLookup {
             case CRAFTING -> fromCrafting(chosen, access);
             case COOKING -> fromCooking((AbstractCookingRecipe) chosen, access, wanted);
             case SMITHING -> fromSmithing(chosen, access);
+            // 农夫乐事的配方类在它自己的 mod 里，本模组不直接依赖，暂不支持反查
+            case FARMERS -> null;
         };
     }
 
@@ -100,6 +102,8 @@ public final class VanillaRecipeLookup {
             case COOKING -> recipe instanceof AbstractCookingRecipe
                     && recipe.getType() == mcTypeOf(wanted);
             case SMITHING -> recipe instanceof SmithingTransformRecipe;
+            // 同上：不依赖农夫乐事的类
+            case FARMERS -> false;
         };
     }
 

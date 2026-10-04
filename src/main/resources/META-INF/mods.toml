@@ -72,6 +72,31 @@ description='''${mod_description}'''
     ordering="NONE"
     side="BOTH"
 
+# KubeJS 是<b>硬依赖</b>：本模组只是生成脚本，真正让配方生效的是 KubeJS。
+# mandatory=true 意味着没装 KubeJS 时 Forge 会直接拒绝加载并明确报错，
+# 而不是让玩家进游戏后对着一堆不生效的脚本困惑。
+[[dependencies.${mod_id}]]
+    modId="kubejs"
+    mandatory=true
+    versionRange="[2001,)"
+    ordering="AFTER"
+    side="BOTH"
+
+# 农夫乐事与 KubeJSDelight 是<b>可选依赖</b>：没装时只是不显示农夫乐事的两种配方类型，
+# 其余功能照常。客户端会通过 ModList 判断，见 ModCompat。
+[[dependencies.${mod_id}]]
+    modId="farmersdelight"
+    mandatory=false
+    versionRange="[0,)"
+    ordering="AFTER"
+    side="BOTH"
+[[dependencies.${mod_id}]]
+    modId="kubejsdelight"
+    mandatory=false
+    versionRange="[0,)"
+    ordering="AFTER"
+    side="BOTH"
+
 # Features are specific properties of the game environment, that you may want to declare you require. This example declares
 # that your mod requires GL version 3.2 or higher. Other features will be added. They are side aware so declaring this won't
 # stop your mod loading on the server for example.
