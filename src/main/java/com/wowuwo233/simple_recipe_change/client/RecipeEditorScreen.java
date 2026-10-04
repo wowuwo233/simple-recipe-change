@@ -2,6 +2,7 @@ package com.wowuwo233.simple_recipe_change.client;
 
 import com.mojang.blaze3d.platform.InputConstants;
 import com.wowuwo233.simple_recipe_change.ModCompat;
+import com.wowuwo233.simple_recipe_change.kubejs.CreateMachine;
 import com.wowuwo233.simple_recipe_change.kubejs.KubeJsWriter;
 import com.wowuwo233.simple_recipe_change.kubejs.Operation;
 import com.wowuwo233.simple_recipe_change.kubejs.RecipeDraft;
@@ -64,12 +65,42 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
     // 版面纵坐标
     private static final int MODE_Y = 22;
     private static final int SEARCH_Y = 46;
-    private static final int FOUND_Y = 142;
-    private static final int CONTROLS_Y = 158;
-    private static final int LABEL_Y = 184;
-    private static final int FIELD_Y = 194;
-    private static final int BUTTONS_Y = 218;
-    private static final int STATUS_Y = 242;
+    private static final int FOUND_Y = 196;
+    private static final int CONTROLS_Y = 212;
+    private static final int LABEL_Y = 234;
+    private static final int FIELD_Y = 244;
+    /**
+     * 备注输入框。
+     *
+     * <p>放在内容区下半段的空档里（y 166~194）——所有类型的槽位都止于 164，
+     * 而「配方类型」标签在 202，中间正好空着。之前放到底部又开了一行，
+     * 窗口涨到 420 就直接超出屏幕可用高度、顶部被裁掉了。
+     */
+    private static final int NOTE_LABEL_Y = 166;
+    private static final int NOTE_Y = 176;
+    private static final int BUTTONS_Y = 268;
+    private static final int STATUS_Y = 292;
+
+    /**
+     * 经验/成功率、处理时间/循环次数这两个框的 y。
+     *
+     * <p>它们从内容区挪到了「配方类型」那一行的上面——原来占着内容区右边，
+     * 而序列组装的内容区要整个让给 5 个步骤列（机器按钮 + 槽位），挪下来既腾了地方，
+     * 也顺带填掉了加高窗口后空出来的那一段。
+     */
+    private static final int XP_FIELD_Y = 148;
+    private static final int TIME_FIELD_Y_TWO_ROWS = 180;
+    /**
+     * 只有时间框一行时它的 y（机械动力处理配方）。
+     *
+     * <p>放在 106 而不是接着往下排——机械动力的材料是 3×3 网格，额外产物行被挤到了
+     * {@code CREATE_EXTRA_ROW_Y}(146)，时间框要是也往下放就会压上去。
+     * 挪到右上角（网格只占 x 16..70，右边整片是空的）正好避开。
+     */
+    private static final int TIME_FIELD_Y = 106;
+    /** 右半边输入框的 x 与宽度 */
+    private static final int FIELD_X = 150;
+    private static final int FIELD_W = 178;
 
     // 搜索浮层：从搜索框下方一直铺到窗口底部，搜索时把下半部分（含玩家背包）整块盖住。
     // 盖不住的槽位靠控件隐藏兜底，避免出现「透出来叠字」。
@@ -111,6 +142,35 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
      */
     private Button tagButton;
     private boolean useItemTags = false;
+
+    /**
+     * 机械动力的具体机器与热度要求。
+     *
+     * <p>这两个控件<b>复用「无序」和「镜像」两个按钮槽</b>——那两个按钮本来就只对合成类
+     * 有意义，在 Create 类型下必然是灰的，白占位置；文献上也不冲突。
+     */
+    private CreateMachine createMachine = CreateMachine.CRUSHING;
+    /** 空 / heated / superheated */
+    private String createHeat = "";
+    /** 热度是三态，用按钮循环比文本框合适 */
+    private static final String[] HEAT_CYCLE = {"", "heated", "superheated"};
+
+    private static String heatLabel(String heat) {
+        return switch (heat) {
+            case "heated" -> "加热";
+            case "superheated" -> "超热";
+            default -> "无";
+        };
+    }
+
+    private static String nextHeat(String heat) {
+        for (int i = 0; i < HEAT_CYCLE.length; i++) {
+            if (HEAT_CYCLE[i].equals(heat)) {
+                return HEAT_CYCLE[(i + 1) % HEAT_CYCLE.length];
+            }
+        }
+        return "";
+    }
     private Button shapelessButton;
     private Button mirrorButton;
     private Button saveButton;
@@ -240,45 +300,65 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
 
         this.secondaryButton = this.addRenderableWidget(Button.builder(
                         Component.literal(secondaryLabel()), b -> cycleSecondary())
-                .bounds(this.leftPos + 12, this.topPos + CONTROLS_Y, 80, 20)
+                .bounds(this.leftPos + 12, this.topPos + CONTROLS_Y, 76, 20)
                 .build());
 
         this.groupButton = this.addRenderableWidget(Button.builder(
                         Component.literal(groupLabel()), b -> cycleGroup())
-                .bounds(this.leftPos + 96, this.topPos + CONTROLS_Y, 80, 20)
+                .bounds(this.leftPos + 92, this.topPos + CONTROLS_Y, 76, 20)
                 .build());
 
         this.shapelessButton = this.addRenderableWidget(Button.builder(
                         Component.literal(shapelessLabel()), b -> {
-                            this.shapeless = !this.shapeless;
+                            if (this.recipeType.isCreate()) {
+                                this.createMachine = this.createMachine.next();
+                            } else {
+                                this.shapeless = !this.shapeless;
+                            }
                             refreshButtonStates();
                         })
-                .bounds(this.leftPos + 180, this.topPos + CONTROLS_Y, 74, 20)
+                .bounds(this.leftPos + 172, this.topPos + CONTROLS_Y, 92, 20)
                 .build());
 
         this.mirrorButton = this.addRenderableWidget(Button.builder(
                         Component.literal(mirrorLabel()), b -> {
-                            this.mirrored = !this.mirrored;
+                            if (this.recipeType.isCreate()) {
+                                this.createHeat = nextHeat(this.createHeat);
+                            } else {
+                                this.mirrored = !this.mirrored;
+                            }
                             refreshButtonStates();
                         })
-                .bounds(this.leftPos + 258, this.topPos + CONTROLS_Y, 70, 20)
+                .bounds(this.leftPos + 268, this.topPos + CONTROLS_Y, 60, 20)
                 .build());
 
         // 烧炼专用的经验与时间
         String xpText = this.xpField == null ? "0" : this.xpField.getValue();
-        String timeText = this.timeField == null ? String.valueOf(RecipeDraft.DEFAULT_COOKING_TIME)
+        String timeText = this.timeField == null
+                ? String.valueOf(this.recipeType.defaultProcessingTime())
                 : this.timeField.getValue();
-        this.xpField = new EditBox(this.font, this.leftPos + 150, this.topPos + 92, 178, 18,
-                Component.literal("经验"));
+        // 位置必须用这两个常量：标签是按它们画的，写死数字就会出现「框在这、字在那」
+        this.xpField = new EditBox(this.font, this.leftPos + FIELD_X, this.topPos + XP_FIELD_Y,
+                FIELD_W, 18, Component.literal("经验"));
         this.xpField.setMaxLength(10);
         this.xpField.setValue(xpText);
         this.addRenderableWidget(this.xpField);
 
-        this.timeField = new EditBox(this.font, this.leftPos + 150, this.topPos + 120, 178, 18,
+        this.timeField = new EditBox(this.font, this.leftPos + FIELD_X,
+                this.topPos + TIME_FIELD_Y_TWO_ROWS, FIELD_W, 18,
                 Component.literal("烧制时间"));
         this.timeField.setMaxLength(10);
         this.timeField.setValue(timeText);
         this.addRenderableWidget(this.timeField);
+
+        // 备注：写进脚本时变成 // 注释，放在配方上方
+        String noteText = this.noteField == null ? "" : this.noteField.getValue();
+        this.noteField = new EditBox(this.font, this.leftPos + 12, this.topPos + NOTE_Y, 316, 18,
+                Component.literal("备注"));
+        this.noteField.setMaxLength(200);
+        this.noteField.setValue(noteText);
+        this.noteField.setHint(Component.literal("备注（会写成脚本里的 // 注释，可留空）"));
+        this.addRenderableWidget(this.noteField);
 
         this.idField = new EditBox(this.font, this.leftPos + 12, this.topPos + FIELD_Y, 152, 18,
                 Component.literal("配方名"));
@@ -298,7 +378,7 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
             EditBox box = new EditBox(this.font,
                     this.leftPos + RecipeEditorMenu.EXTRA_SLOT_X0
                             + i * RecipeEditorMenu.EXTRA_SLOT_STEP + 20,
-                    this.topPos + RecipeEditorMenu.EXTRA_ROW_Y, 56, 18,
+                    this.topPos + RecipeEditorMenu.EXTRA_ROW_Y, 34, 18,
                     Component.literal("概率"));
             box.setMaxLength(6);
             box.setValue("1");
@@ -315,6 +395,11 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
                         this.topPos + RecipeEditorMenu.TAG_BUTTON_Y,
                         RecipeEditorMenu.TAG_BUTTON_W, 20)
                 .build());
+
+        // 控件都建好之后再统一摆一次位置与可见性：
+        // init 前半段调用的那次是在字段创建之前，改不到它们。
+        refreshButtonStates();
+        updateWidgetVisibility();
 
         this.saveButton = this.addRenderableWidget(Button.builder(Component.literal("保存并写入"), b -> save())
                 .bounds(this.leftPos + 12, this.topPos + BUTTONS_Y, 84, 20)
@@ -346,7 +431,7 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
         }
         this.operation = mode;
         // 槽位布局等服务端确认后再重建，避免两端槽位数短暂不一致
-        ModNetwork.requestSetMode(this.operation, this.recipeType);
+        ModNetwork.requestSetMode(this.operation, this.recipeType, this.createMachine);
         refreshButtonStates();
     }
 
@@ -359,7 +444,7 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
         this.recipeType = this.recipeType.next();
         this.inputItems = blankInputs();
         this.extraItems = blankExtras();
-        ModNetwork.requestSetMode(this.operation, this.recipeType);
+        ModNetwork.requestSetMode(this.operation, this.recipeType, this.createMachine);
         applySlotLayout();
         refreshButtonStates();
         updateWidgetVisibility();
@@ -368,7 +453,11 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
     private void applySlotLayout() {
         // 注意：不能用 menu.getRecipeType() 反写回本地类型——客户端菜单对象更新得比这里晚，
         // 那样会把刚切换的类型直接抹掉，表现为「类型点不动」。
-        this.menu.applyLayout(this.operation, this.recipeType);
+        this.menu.applyLayout(this.operation, this.recipeType, this.createMachine);
+        // 处理时间的默认值随类型走：原版烧炼 200 tick，机械动力 100 tick
+        if (this.timeField != null) {
+            this.timeField.setValue(String.valueOf(this.recipeType.defaultProcessingTime()));
+        }
     }
 
     private void refreshButtonStates() {
@@ -391,12 +480,15 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
         }
         boolean adding = this.operation == Operation.ADD;
         boolean crafting = this.recipeType.isCrafting();
+        boolean create = this.recipeType.isCreate();
         if (this.shapelessButton != null) {
-            this.shapelessButton.active = adding && crafting;
+            // Create 下「机器」始终可点；合成本来就是 (添加 && 合成)
+            this.shapelessButton.active = create || (adding && crafting);
             this.shapelessButton.setMessage(Component.literal(shapelessLabel()));
         }
         if (this.mirrorButton != null) {
-            this.mirrorButton.active = adding && crafting && !this.shapeless;
+            // Create 下「热度」始终可点；镜像只在有序合成且未勾无序时才有意义
+            this.mirrorButton.active = create || (adding && crafting && !this.shapeless);
             this.mirrorButton.setMessage(Component.literal(mirrorLabel()));
         }
     }
@@ -430,7 +522,7 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
         this.recipeType = RecipeType.firstOf(target);
         this.inputItems = blankInputs();
         this.extraItems = blankExtras();
-        ModNetwork.requestSetMode(this.operation, this.recipeType);
+        ModNetwork.requestSetMode(this.operation, this.recipeType, this.createMachine);
         applySlotLayout();
         refreshButtonStates();
         updateWidgetVisibility();
@@ -504,10 +596,18 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
     }
 
     private String shapelessLabel() {
+        // Create 类型下这个按钮槽改当「机器」用——直接显示机器名，不加「机器：」前缀
+        if (this.recipeType.isCreate()) {
+            return this.createMachine.label();
+        }
         return "无序：" + (shapeless ? "是" : "否");
     }
 
     private String mirrorLabel() {
+        // Create 类型下这个按钮槽改当「热度」用
+        if (this.recipeType.isCreate()) {
+            return "热度：" + heatLabel(this.createHeat);
+        }
         return "镜像：" + (mirrored ? "是" : "否");
     }
 
@@ -545,21 +645,36 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
         }
 
         boolean cooking = this.recipeType.hasCookingSettings();
+        boolean time = this.recipeType.hasTimeField();
+        // 经验框对机械动力没有意义，但序列组装会把它当「组装成功率」用
+        boolean xpRow = cooking;
+        // 只有「经验/成功率」和「时间/循环」都在时才排两行；否则时间框上移到 y=92，
+        // 不然两个框会落在同一个位置叠在一起（序列组装就踩过这个坑）
+        boolean twoRows = twoFieldRows();
         if (xpField != null) {
-            xpField.visible = visible && cooking;
+            xpField.visible = visible && xpRow;
             if (!xpField.visible) {
                 xpField.setFocused(false);
             }
         }
         if (timeField != null) {
-            timeField.visible = visible && cooking;
+            timeField.visible = visible && time;
             if (!timeField.visible) {
                 timeField.setFocused(false);
+            } else {
+                // 没有经验那一行时把时间/循环框挪上去，否则会压到额外产物格
+                this.timeField.setY(this.topPos + (twoRows ? TIME_FIELD_Y_TWO_ROWS : TIME_FIELD_Y));
             }
         }
 
-        // 额外产物只属于切菜板
-        boolean extra = visible && this.recipeType.hasMultipleOutputs();
+        // 概率框只属于切菜板；机械动力的额外产物不带概率，格子显示但框不显示
+        // 概率框的 y 要跟服务端摆的槽位一致：机械动力的额外产物行比其它类型低
+        int extraY = this.recipeType.isCreate()
+                ? RecipeEditorMenu.CREATE_EXTRA_ROW_Y : RecipeEditorMenu.EXTRA_ROW_Y;
+        for (EditBox box : this.extraChanceFields) {
+            box.setY(this.topPos + extraY);
+        }
+        boolean extra = visible && this.menu.hasByproductChance();
         for (EditBox box : this.extraChanceFields) {
             box.visible = extra;
             if (!extra) {
@@ -614,7 +729,7 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
             for (int i = 0; i < Math.min(9, cells.size()); i++) {
                 this.inputItems.set(i, cells.get(i));
             }
-            // 额外产物跟着一起回填（切菜板专用）
+            // 额外产物跟着一起回填（切菜板 / 机械动力专用）
             this.extraItems = blankExtras();
             List<RecipeDraft.ExtraOutput> extras =
                     ModNetwork.decodeExtraOutputs(msg.extraOutputs());
@@ -626,6 +741,13 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
                             .setValue(KubeJsWriter.formatNumber(extra.chance()));
                 }
             }
+            // 机械动力的机器与热度跟着载入
+            this.createMachine = CreateMachine.byOrdinal(msg.machineOrdinal());
+            this.createHeat = msg.heat() == null ? "" : msg.heat();
+            if (this.noteField != null) {
+                this.noteField.setValue(msg.note() == null ? "" : msg.note());
+            }
+            refreshButtonStates();
         }
 
         // 只有真的查到原版配方时才回填经验/时间，否则会把用户刚填的值冲掉
@@ -722,11 +844,21 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
         drawSlotLabels(graphics);
         graphics.drawString(this.font, secondaryCaption(), 12, CONTROLS_Y - 10, COLOR_LABEL, false);
         graphics.drawString(this.font, "配方名（可留空）", 12, LABEL_Y, COLOR_LABEL, false);
+        graphics.drawString(this.font, "备注（写成脚本里的 // 注释，可留空）", 12, NOTE_LABEL_Y,
+                COLOR_LABEL, false);
         graphics.drawString(this.font, "文件名", 176, LABEL_Y, COLOR_LABEL, false);
 
-        if (this.recipeType.hasCookingSettings()) {
-            graphics.drawString(this.font, "获得经验", 150, 82, COLOR_LABEL, false);
-            graphics.drawString(this.font, "烧制时间（tick，默认 200）", 150, 110, COLOR_LABEL, false);
+        boolean cooking = this.recipeType.hasCookingSettings();
+        // 经验框：原版烧炼/烹饪锅是「获得经验」，序列组装借它当「组装成功率」
+        if (cooking) {
+            graphics.drawString(this.font, "获得经验", FIELD_X, XP_FIELD_Y - 10, COLOR_LABEL, false);
+        }
+        // 时间框：烧制时间 / 处理时间 / 循环次数——之前被 hasCookingSettings 一起挡住了，
+        // 导致机械动力那两个框光秃秃的没有标签
+        if (this.recipeType.hasTimeField()) {
+            int ty = twoFieldRows() ? TIME_FIELD_Y_TWO_ROWS : TIME_FIELD_Y;
+            graphics.drawString(this.font, this.recipeType.timeFieldLabel(), FIELD_X, ty - 10,
+                    COLOR_LABEL, false);
         }
 
         renderFoundInfo(graphics);
@@ -757,6 +889,8 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
                     COLOR_SLOT_LABEL, false);
         } else if (this.recipeType.isFarmers()) {
             drawFarmersLabels(graphics);
+        } else if (this.recipeType.isCreate()) {
+            drawCreateLabels(graphics);
         } else {
             // 用 slot.y 而不是固定的 ROW_Y：农夫乐事之外的类型也可能把行挪走
             for (int i = 0; i < inputs && i < labels.length; i++) {
@@ -769,6 +903,31 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
         Slot output = this.menu.slots.get(this.menu.outputMenuIndex());
         graphics.drawString(this.font, this.recipeType.outputLabel(), output.x,
                 output.y + 22, COLOR_SLOT_LABEL, false);
+    }
+
+    private EditBox noteField;
+
+    /**
+     * 右边这两行是不是都要占。
+     *
+     * <p>字段位置和标签位置必须用<b>同一个判断</b>：{@code updateWidgetVisibility} 和
+     * {@code renderLabels} 一旦用不同的条件，就会出现「框挪走了、标签留在原地」的重叠。
+     */
+    private boolean twoFieldRows() {
+        return this.recipeType.hasCookingSettings() && this.recipeType.hasTimeField();
+    }
+
+    /**
+     * 机械动力的槽位标注。
+     *
+     * <p>处理配方的材料是 3×2 网格，所以不能像其它类型那样「每个槽下面一行字」——
+     * 那样只有第一个槽会拿到标注，位置还正好落在网格中间。
+     */
+    private void drawCreateLabels(GuiGraphics graphics) {
+        graphics.drawString(this.font, "材料", RecipeEditorMenu.CREATE_GRID_X,
+                RecipeEditorMenu.CREATE_LABEL_Y, COLOR_SLOT_LABEL, false);
+        graphics.drawString(this.font, "额外产物", 200, RecipeEditorMenu.CREATE_LABEL_Y,
+                COLOR_TEXT_DIM, false);
     }
 
     /**
@@ -1177,7 +1336,10 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
                 parseXp(),
                 parseCookingTime(),
                 cells,
-                collectExtraOutputs());
+                collectExtraOutputs(),
+                this.createMachine.ordinal(),
+                this.createHeat,
+                this.noteField == null ? "" : this.noteField.getValue());
         setStatus(true, "正在写入…");
     }
 
@@ -1203,3 +1365,4 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
         }
     }
 }
+

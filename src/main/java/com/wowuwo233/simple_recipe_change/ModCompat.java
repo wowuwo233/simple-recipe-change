@@ -3,6 +3,9 @@ package com.wowuwo233.simple_recipe_change;
 import com.wowuwo233.simple_recipe_change.kubejs.RecipeType;
 import net.minecraftforge.fml.ModList;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * 运行环境检测。
  *
@@ -21,6 +24,9 @@ public final class ModCompat {
     public static final String KUBEJS = "kubejs";
     public static final String FARMERS_DELIGHT = "farmersdelight";
     public static final String KUBEJS_DELIGHT = "kubejsdelight";
+    public static final String CREATE = "create";
+    /** 注意是下划线，不是 create 的 adaption 习惯写法 */
+    public static final String KUBEJS_CREATE = "kubejs_create";
 
     private ModCompat() {
     }
@@ -34,14 +40,43 @@ public final class ModCompat {
         return isLoaded(FARMERS_DELIGHT) && isLoaded(KUBEJS_DELIGHT);
     }
 
+    /** 机械动力的处理配方同理 */
+    public static boolean hasCreate() {
+        return isLoaded(CREATE) && isLoaded(KUBEJS_CREATE);
+    }
+
     /** 这个分组在当前整合包里能不能选 */
     public static boolean available(RecipeType.Group group) {
-        return group != RecipeType.Group.FARMERS_DELIGHT || hasFarmersDelight();
+        return switch (group) {
+            case VANILLA -> true;
+            case FARMERS_DELIGHT -> hasFarmersDelight();
+            case CREATE -> hasCreate();
+        };
     }
 
     /** 有没有一个以上分组可用（只有一个时「分组」按钮就没必要点了） */
     public static boolean hasMultipleGroups() {
-        return hasFarmersDelight();
+        return hasFarmersDelight() || hasCreate();
+    }
+
+    /**
+     * 查出「装了本体、却没装对应 KubeJS 适配」的组合。
+     *
+     * <p>这种情况最坑人：本模组能正常打开，但生成的脚本在游戏里不会生效，
+     * 玩家只会以为「这模组坏了」。所以宁可拒绝加载并把原因说清楚。
+     *
+     * <p>反过来，如果本体和适配都没装，那只是这个分组不显示而已，不算问题——
+     * 这时只需要看原版 KubeJS 在不在。
+     */
+    public static List<String> missingCompanions() {
+        List<String> problems = new ArrayList<>();
+        if (isLoaded(FARMERS_DELIGHT) && !isLoaded(KUBEJS_DELIGHT)) {
+            problems.add("农夫乐事（Farmers' Delight）  →  缺少 KubeJSDelight");
+        }
+        if (isLoaded(CREATE) && !isLoaded(KUBEJS_CREATE)) {
+            problems.add("机械动力（Create）  →  缺少 KubeJS Create");
+        }
+        return problems;
     }
 
     private static boolean isLoaded(String modId) {

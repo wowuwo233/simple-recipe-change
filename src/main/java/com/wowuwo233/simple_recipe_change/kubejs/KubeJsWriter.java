@@ -112,6 +112,16 @@ public final class KubeJsWriter {
         String output = quoteOutput(d.outputItem(), d.outputCount());
 
         StringBuilder sb = new StringBuilder();
+
+        // 备注写成 // 行注释放在配方上方。
+        // 注意不能用 # —— 这是 JavaScript（KubeJS 用 Rhino 跑 .js），# 是语法错误，
+        // 会让整个脚本文件加载失败，而不是被当成注释。
+        if (d.note() != null && !d.note().isBlank()) {
+            for (String line : d.note().split("\r?\n")) {
+                sb.append("// ").append(line.strip()).append('\n');
+            }
+        }
+
         switch (d.type().category()) {
             case CRAFTING -> {
                 List<String> ingredients = d.ingredients();
@@ -133,6 +143,7 @@ public final class KubeJsWriter {
                     appendFarmersCutting(sb, d, output);
                 }
             }
+            case CREATE -> appendCreate(sb, d, output);
         }
 
         sb.append(".id('").append(recipeId).append("')");
@@ -272,6 +283,71 @@ public final class KubeJsWriter {
             return "'" + item + "'";
         }
         return "ChanceResult.of('" + item + "', " + formatNumber(extra.chance()) + ")";
+    }
+
+    /**
+     * 机械动力 · 处理配方。
+     *
+     * <p>Create 的十几个处理机器共用同一套 schema（产物数组 → 材料数组 →
+     * processingTime → heatRequirement），所以生成逻辑只有这一份，机器名来自
+     * {@link RecipeDraft#machine()}。
+     *
+     * <p>调用路径同样是命名空间对象：{@code event.recipes.create.crushing(...)}。
+     *
+     * <p>可选的几个参数一律用<b>链式方法</b>写（{@code .processingTime(100)}），
+     * 而不是靠位置占坑——否则「跳过 processingTime 直接写 heatRequirement」
+     * 就得凭空补一个 null，既难看又容易错。
+     *
+     * <p>{@code processingTime} 的默认值是 100 tick（不是原版烧炼的 200）；
+     * 但粉碎/研磨/切割这三个 schema 是 {@code PROCESSING_WITH_TIME}，必须写出来。
+     */
+    private static void appendCreate(StringBuilder sb, RecipeDraft d, String output) {
+        CreateMachine machine = d.machine();
+
+        List<String> ingredients = new ArrayList<>();
+        for (String c : d.inputCells()) {
+            if (c != null && !c.isBlank()) {
+                ingredients.add(c);
+            }
+        }
+        if (ingredients.isEmpty()) {
+            throw new IllegalArgumentException("请至少放入一种材料");
+        }
+
+        List<String> results = new ArrayList<>();
+        // 主产物来自 quoteOutput，已经带引号；额外产物要在这里补上引号
+        results.add(output);
+        for (RecipeDraft.ExtraOutput extra : d.extraOutputs()) {
+            if (extra == null || extra.item() == null || extra.item().isBlank()) {
+                continue;
+            }
+            String item = extra.count() > 1 ? extra.count() + "x " + extra.item() : extra.item();
+            results.add("'" + item + "'");
+        }
+
+        sb.append(machine.eventPath()).append("(\n");
+        sb.append("  [\n");
+        for (String r : results) {
+            sb.append("    ").append(r).append(",\n");
+        }
+        sb.append("  ],\n");
+        sb.append("  [\n");
+        for (String ing : ingredients) {
+            sb.append("    '").append(ing).append("',\n");
+        }
+        sb.append("  ]\n");
+        sb.append(")");
+
+        int defaultTime = d.type().defaultProcessingTime();
+        if (machine.requiresTime() || d.cookingTime() != defaultTime) {
+            sb.append(".processingTime(").append(d.cookingTime()).append(")");
+        }
+        if (d.heat() != null && !d.heat().isBlank()) {
+            sb.append(".heatRequirement('").append(d.heat()).append("')");
+        }
+        if (machine.hasKeepHeldItem() && d.keepHeldItem()) {
+            sb.append(".keepHeldItem(true)");
+        }
     }
 
     private static String firstNonBlank(List<String> cells, String error) {

@@ -26,11 +26,19 @@ public enum RecipeType {
     /** 农夫乐事 · 烹饪锅：6 个材料槽 + 1 个容器槽 */
     FARMERS_COOKING("farmersdelight_cooking", "农夫乐事 · 烹饪锅", "烹饪锅", Category.FARMERS, 7, 1),
     /** 农夫乐事 · 切菜板：1 个材料槽 + 1 个工具槽，产物可以多个且带概率 */
-    FARMERS_CUTTING("farmersdelight_cutting", "农夫乐事 · 切菜板", "切菜板", Category.FARMERS, 2, 1);
+    FARMERS_CUTTING("farmersdelight_cutting", "农夫乐事 · 切菜板", "切菜板", Category.FARMERS, 2, 1),
+    /**
+     * 机械动力 · 处理配方。
+     *
+     * <p>Create 有十几个处理机器，但它们<b>共用同一套参数结构</b>（产物数组 + 材料数组 +
+     * 处理时间 + 热度），所以界面上只做一个类型，具体机器由 {@link CreateMachine} 切换，
+     * 新增机器不用改界面代码。
+     */
+    CREATE_PROCESSING("create_processing", "机械动力 · 处理配方", "处理", Category.CREATE, 9, 1);
 
     /** 配方大类，决定界面布局与生成方式 */
     public enum Category {
-        CRAFTING, COOKING, SMITHING, FARMERS
+        CRAFTING, COOKING, SMITHING, FARMERS, CREATE
     }
 
     /**
@@ -41,7 +49,8 @@ public enum RecipeType {
      */
     public enum Group {
         VANILLA("原版"),
-        FARMERS_DELIGHT("农夫乐事");
+        FARMERS_DELIGHT("农夫乐事"),
+        CREATE("机械动力");
 
         private final String label;
 
@@ -111,7 +120,7 @@ public enum RecipeType {
             case CRAFTING -> gridWidth * gridHeight;
             case COOKING -> 1;
             case SMITHING -> 3;
-            case FARMERS -> gridWidth;
+            case FARMERS, CREATE -> gridWidth;
         };
     }
 
@@ -124,6 +133,7 @@ public enum RecipeType {
             case SMITHING -> new String[]{"模板", "基础物品", "升级物品"};
             case FARMERS_COOKING -> new String[]{"材料", "材料", "材料", "材料", "材料", "材料", "容器"};
             case FARMERS_CUTTING -> new String[]{"材料", "工具"};
+            case CREATE_PROCESSING -> new String[]{"材料"};
         };
     }
 
@@ -131,9 +141,32 @@ public enum RecipeType {
         return "产物";
     }
 
-    /** 是否需要经验与烧制时间两个输入框（原版烧炼 + 农夫乐事烹饪锅） */
+    /**
+     * 需不需要「经验」这一个输入框。
+     *
+     * <p>只有原版烧炼和农夫乐事烹饪锅有；机械动力的处理配方没有经验。
+     */
     public boolean hasCookingSettings() {
         return category == Category.COOKING || this == FARMERS_COOKING;
+    }
+
+    /**
+     * 需不需要那个数字输入框（烧制时间 / 处理时间 / 循环次数）。
+     *
+     * <p>机械动力也要，但含义不同——所以字段名必须随类型变，见 {@link #timeFieldLabel()}。
+     */
+    public boolean hasTimeField() {
+        return hasCookingSettings() || isCreate();
+    }
+
+    /** 时间输入框上方那行说明 */
+    public String timeFieldLabel() {
+        return isCreate() ? "处理时间（tick，默认 100）" : "烧制时间（tick，默认 200）";
+    }
+
+    /** 产物是否带概率（只有切菜板有） */
+    public boolean hasChanceResults() {
+        return this == FARMERS_CUTTING;
     }
 
     /** 是否是农夫乐事类型（由 KubeJSDelight 提供 schema） */
@@ -141,9 +174,24 @@ public enum RecipeType {
         return category == Category.FARMERS;
     }
 
-    /** 切菜板专用：产物可以是多个，且每个可以带概率 */
+    /** 是否是机械动力类型（由 kubejs-create 提供 schema） */
+    public boolean isCreate() {
+        return category == Category.CREATE;
+    }
+
+    /** 是不是「多个产物」的类型（切菜板 + Create 处理配方） */
     public boolean hasMultipleOutputs() {
-        return this == FARMERS_CUTTING;
+        return this == FARMERS_CUTTING || isCreate();
+    }
+
+    /** Create 处理配方：处理时间默认 100 tick，而不是原版烧炼的 200 */
+    public int defaultProcessingTime() {
+        return this == CREATE_PROCESSING ? 100 : 200;
+    }
+
+    /** 需不需要「热度」这个参数（只有 Create 的处理配方有） */
+    public boolean hasHeatRequirement() {
+        return isCreate();
     }
 
     /** 切菜板专用：工具槽是否必填 */
@@ -170,6 +218,8 @@ public enum RecipeType {
             case SMITHING -> "smithing";
             case FARMERS_COOKING -> "cooking";
             case FARMERS_CUTTING -> "cutting";
+            // Create 的真实方法名由具体机器决定，见 CreateMachine#eventPath
+            case CREATE_PROCESSING -> "processing";
         };
     }
 
@@ -180,11 +230,18 @@ public enum RecipeType {
      * 可以直接 {@code event.smelting(...)}；但 mod 提供的类型挂在命名空间对象下，
      * 必须写成 {@code event.recipes.farmersdelight.cooking(...)}——写成
      * {@code event.cooking(...)} 在游戏里会报 undefined。
+     *
+     * <p>Create 处理配方的机器名不固定，这个返回值对它是占位符，
+     * 真正用的是 {@link CreateMachine#eventPath()}。
      */
     public String eventPath() {
-        return isFarmers()
-                ? "event.recipes.farmersdelight." + kubeJsMethod()
-                : "event." + kubeJsMethod();
+        if (isFarmers()) {
+            return "event.recipes.farmersdelight." + kubeJsMethod();
+        }
+        if (isCreate()) {
+            return "event.recipes.create." + kubeJsMethod();
+        }
+        return "event." + kubeJsMethod();
     }
 
     /** 下一个类型，只在同一分组内循环 */
@@ -201,7 +258,10 @@ public enum RecipeType {
 
     /** 这个类型属于哪个来源分组 */
     public RecipeType.Group group() {
-        return isFarmers() ? Group.FARMERS_DELIGHT : Group.VANILLA;
+        if (isFarmers()) {
+            return Group.FARMERS_DELIGHT;
+        }
+        return isCreate() ? Group.CREATE : Group.VANILLA;
     }
 
     /** 某个分组里的第一个类型 */

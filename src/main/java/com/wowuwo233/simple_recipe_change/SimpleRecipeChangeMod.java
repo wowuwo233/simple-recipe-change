@@ -11,6 +11,8 @@ import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import org.slf4j.Logger;
 
+import java.util.List;
+
 /**
  * Simple Recipe Change -- 主类。
  *
@@ -27,6 +29,21 @@ public class SimpleRecipeChangeMod {
 
     public SimpleRecipeChangeMod(FMLJavaModLoadingContext context) {
         IEventBus modEventBus = context.getModEventBus();
+
+        // 装了农夫乐事/机械动力、却没装它们对应的 KubeJS 适配时，本模组照常能打开，
+        // 但生成出来的脚本在游戏里不会生效——玩家只会以为「这模组坏了」。
+        // 与其让人摸不着头脑，不如在加载阶段就把原因说清楚并停下。
+        List<String> missing = ModCompat.missingCompanions();
+        if (!missing.isEmpty()) {
+            throw new IllegalStateException("""
+                    Simple Recipe Change 拒绝加载：检测到以下模组装了本体，却缺少对应的 KubeJS 适配，
+                    生成的配方不会生效，因此提前停止而不是让你进游戏后才发现。
+
+                      - %s
+
+                    请补装对应的 KubeJS 适配；如果你并不需要那个模组的配方类型，
+                    也可以直接移除对应的本体模组。""".formatted(String.join("\n  - ", missing)));
+        }
 
         modEventBus.addListener(this::commonSetup);
 

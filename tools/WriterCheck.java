@@ -1,3 +1,4 @@
+import com.wowuwo233.simple_recipe_change.kubejs.CreateMachine;
 import com.wowuwo233.simple_recipe_change.kubejs.KubeJsWriter;
 import com.wowuwo233.simple_recipe_change.kubejs.Operation;
 import com.wowuwo233.simple_recipe_change.kubejs.RecipeDraft;
@@ -29,6 +30,7 @@ public class WriterCheck {
         cookingRecipes();
         smithingRecipe();
         farmersDelight();
+        createProcessing();
 
         System.out.println();
         if (failures == 0) {
@@ -378,7 +380,8 @@ public class WriterCheck {
                 Operation.ADD, RemoveBy.OUTPUT)
                 .withExtraOutputs(List.of(
                         new RecipeDraft.ExtraOutput("minecraft:flint", 1, 0.75),
-                        new RecipeDraft.ExtraOutput("minecraft:gravel", 2, 1.0)));
+                        new RecipeDraft.ExtraOutput("minecraft:gravel", 2, 1.0),
+                        new RecipeDraft.ExtraOutput("minecraft:dust", 1, 0.0)));
         String c2 = KubeJsWriter.renderRecipeCall(cutting, "simple_recipe_change");
         System.out.println(c2);
         check("切菜板用命名空间路径", c2.contains("event.recipes.farmersdelight.cutting("));
@@ -387,6 +390,9 @@ public class WriterCheck {
         check("主产物在数组里", c2.contains("'minecraft:stone'"));
         check("概率产物用 ChanceResult", c2.contains("ChanceResult.of('minecraft:flint', 0.75)"));
         check("满概率的写成普通物品", c2.contains("'2x minecraft:gravel'"));
+        check("概率 0 不写成普通物品（0=必然失败）",
+                c2.contains("ChanceResult.of('minecraft:dust', 0)")
+                        && !c2.contains("    'minecraft:dust',"));
 
         List<String> noTool = blank(9);
         noTool.set(0, "minecraft:cobblestone");
@@ -398,6 +404,64 @@ public class WriterCheck {
         expectError("烹饪锅没有材料时报错", () -> KubeJsWriter.renderRecipeCall(
                 new RecipeDraft(RecipeType.FARMERS_COOKING, false, true, "", blank(9),
                         "minecraft:stone", 1, Operation.ADD, RemoveBy.OUTPUT), "x"));
+    }
+
+    static void createProcessing() {
+        section("机械动力 · 粉碎（处理时间必写 + 热度）");
+        List<String> cells = blank(9);
+        cells.set(0, "minecraft:cobblestone");
+        RecipeDraft d = new RecipeDraft(RecipeType.CREATE_PROCESSING, false, true,
+                "simple_recipe_change:crush_cobble", cells, "minecraft:gravel", 1,
+                Operation.ADD, RemoveBy.OUTPUT)
+                .withMachine(CreateMachine.CRUSHING)
+                .withCookingTime(100)
+                .withHeat("heated")
+                .withExtraOutputs(List.of(new RecipeDraft.ExtraOutput("minecraft:sand", 1, 1.0)));
+        String call = KubeJsWriter.renderRecipeCall(d, "simple_recipe_change");
+        System.out.println(call);
+        check("用 create 命名空间路径", call.contains("event.recipes.create.crushing("));
+        check("绝不写成 event.crushing(", !call.contains("event.crushing("));
+        check("主产物在数组里", call.contains("'minecraft:gravel'"));
+        check("额外产物也在数组里", call.contains("'minecraft:sand'"));
+        check("材料是数组", call.contains("'minecraft:cobblestone'"));
+        check("WITH_TIME 必写处理时间", call.contains(".processingTime(100)"));
+        check("热度用链式写法", call.contains(".heatRequirement('heated')"));
+
+        section("机械动力 · 混合（时间与热度都可省）");
+        RecipeDraft d2 = new RecipeDraft(RecipeType.CREATE_PROCESSING, false, true, "", cells,
+                "create:andesite_alloy", 1, Operation.ADD, RemoveBy.OUTPUT)
+                .withMachine(CreateMachine.MIXING);
+        String c2 = KubeJsWriter.renderRecipeCall(d2, "x");
+        System.out.println(c2);
+        check("混合走 mixing", c2.contains("event.recipes.create.mixing("));
+        check("默认时间不写出来", !c2.contains(".processingTime("));
+        check("没有热度就不写", !c2.contains(".heatRequirement("));
+
+        section("机械动力 · 部署（多一个 keepHeldItem）");
+        RecipeDraft d3 = new RecipeDraft(RecipeType.CREATE_PROCESSING, false, true, "", cells,
+                "minecraft:stone", 1, Operation.ADD, RemoveBy.OUTPUT)
+                .withMachine(CreateMachine.DEPLOYING)
+                .withKeepHeldItem(true);
+        check("写 keepHeldItem", KubeJsWriter.renderRecipeCall(d3, "x").contains(".keepHeldItem(true)"));
+
+        expectError("没有材料时报错", () -> KubeJsWriter.renderRecipeCall(
+                new RecipeDraft(RecipeType.CREATE_PROCESSING, false, true, "", blank(9),
+                        "minecraft:stone", 1, Operation.ADD, RemoveBy.OUTPUT), "x"));
+
+        section("备注写进脚本");
+        List<String> furnaceCells = blank(9);
+        furnaceCells.set(0, "minecraft:cobblestone");
+        RecipeDraft noted = new RecipeDraft(RecipeType.FURNACE, false, true,
+                "simple_recipe_change:noted", furnaceCells, "minecraft:stone", 1,
+                Operation.ADD, RemoveBy.OUTPUT)
+                .withNote("这是我加的配方");
+        String nc = KubeJsWriter.renderRecipeCall(noted, "x");
+        System.out.println(nc);
+        check("备注用 JS 行注释", nc.startsWith("// 这是我加的配方\n"));
+        check("绝不用 # 当注释", !nc.contains("#"));
+        check("没有备注时不生成注释", !KubeJsWriter.renderRecipeCall(
+                new RecipeDraft(RecipeType.FURNACE, false, true, "", furnaceCells,
+                        "minecraft:stone", 1, Operation.ADD, RemoveBy.OUTPUT), "x").startsWith("//"));
     }
 
     // ------------------------------------------------------------ 工具

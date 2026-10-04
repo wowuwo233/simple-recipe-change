@@ -97,6 +97,22 @@ description='''${mod_description}'''
     ordering="AFTER"
     side="BOTH"
 
+# 机械动力与它的 KubeJS 适配，同样是可选依赖。
+# 「装了本体却没装适配」这种组合会在代码里被拒绝加载（见 ModCompat.missingCompanions），
+# 因为 mods.toml 没法表达「如果装了 A 就必须装 B」。
+[[dependencies.${mod_id}]]
+    modId="create"
+    mandatory=false
+    versionRange="[0,)"
+    ordering="AFTER"
+    side="BOTH"
+[[dependencies.${mod_id}]]
+    modId="kubejs_create"
+    mandatory=false
+    versionRange="[0,)"
+    ordering="AFTER"
+    side="BOTH"
+
 # Features are specific properties of the game environment, that you may want to declare you require. This example declares
 # that your mod requires GL version 3.2 or higher. Other features will be added. They are side aware so declaring this won't
 # stop your mod loading on the server for example.

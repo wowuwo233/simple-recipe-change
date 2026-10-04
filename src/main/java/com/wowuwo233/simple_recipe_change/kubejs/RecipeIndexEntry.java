@@ -8,7 +8,6 @@ import com.google.gson.JsonObject;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-
 /**
  * 「我的配方」列表里的一条记录：本模组写过的一份配方的完整快照。
  *
@@ -29,7 +28,10 @@ public record RecipeIndexEntry(
         List<String> cells,
         double xp,
         int cookingTime,
-        List<RecipeDraft.ExtraOutput> extraOutputs
+        List<RecipeDraft.ExtraOutput> extraOutputs,
+        CreateMachine machine,
+        String heat,
+        String note
 ) {
     public RecipeIndexEntry {
         cells = cells == null
@@ -38,6 +40,15 @@ public record RecipeIndexEntry(
         extraOutputs = extraOutputs == null
                 ? Collections.emptyList()
                 : Collections.unmodifiableList(new ArrayList<>(extraOutputs));
+        if (machine == null) {
+            machine = CreateMachine.CRUSHING;
+        }
+        if (heat == null) {
+            heat = "";
+        }
+        if (note == null) {
+            note = "";
+        }
         if (outputItem == null) {
             outputItem = "";
         }
@@ -57,7 +68,7 @@ public record RecipeIndexEntry(
                             boolean shapeless, boolean mirrored, String recipeId, String sourceRecipeId,
                             String outputItem, int outputCount, List<String> cells) {
         this(blockId, fileName, operation, type, shapeless, mirrored, recipeId, sourceRecipeId,
-                outputItem, outputCount, cells, 0D, RecipeDraft.DEFAULT_COOKING_TIME, List.of());
+                outputItem, outputCount, cells, 0D, 0, List.of(), CreateMachine.CRUSHING, "", "");
     }
 
     public static RecipeIndexEntry fromDraft(String blockId, String fileName, RecipeDraft draft) {
@@ -68,7 +79,8 @@ public record RecipeIndexEntry(
         return new RecipeIndexEntry(blockId, fileName, draft.operation(), draft.type(),
                 draft.shapeless(), draft.mirrored(), draft.recipeId(), draft.sourceRecipeId(),
                 draft.outputItem() == null ? "" : draft.outputItem(), draft.outputCount(), cells,
-                draft.xp(), draft.cookingTime(), draft.extraOutputs());
+                draft.xp(), draft.cookingTime(), draft.extraOutputs(),
+                draft.machine(), draft.heat(), draft.note());
     }
 
     /** 还原成编辑器用的草稿 */
@@ -79,7 +91,8 @@ public record RecipeIndexEntry(
         }
         return new RecipeDraft(type, shapeless, mirrored, recipeId, copy,
                 outputItem.isBlank() ? null : outputItem, outputCount, operation, RemoveBy.OUTPUT,
-                sourceRecipeId, xp, cookingTime, extraOutputs, "");
+                sourceRecipeId, xp, cookingTime, extraOutputs, "",
+                machine, heat, false, note);
     }
 
     public JsonObject toJson() {
@@ -96,6 +109,9 @@ public record RecipeIndexEntry(
         o.addProperty("outputCount", outputCount);
         o.addProperty("xp", xp);
         o.addProperty("cookingTime", cookingTime);
+        o.addProperty("machine", machine.name());
+        o.addProperty("heat", heat);
+        o.addProperty("note", note);
         JsonArray arr = new JsonArray();
         for (String c : cells) {
             arr.add(c == null ? JsonNull.INSTANCE : new com.google.gson.JsonPrimitive(c));
@@ -113,6 +129,16 @@ public record RecipeIndexEntry(
         }
         o.add("extraOutputs", extras);
         return o;
+    }
+
+    private static JsonArray stringArray(List<String> list) {
+        JsonArray arr = new JsonArray();
+        for (String s : list) {
+            if (s != null && !s.isBlank()) {
+                arr.add(s);
+            }
+        }
+        return arr;
     }
 
     public static RecipeIndexEntry fromJson(JsonObject o) {
@@ -151,7 +177,19 @@ public record RecipeIndexEntry(
                 cells,
                 o.has("xp") ? o.get("xp").getAsDouble() : 0D,
                 o.has("cookingTime") ? o.get("cookingTime").getAsInt() : RecipeDraft.DEFAULT_COOKING_TIME,
-                extras);
+                extras,
+                machineOf(str(o, "machine")),
+                str(o, "heat"),
+                str(o, "note"));
+    }
+
+    private static CreateMachine machineOf(String name) {
+        for (CreateMachine m : CreateMachine.values()) {
+            if (m.name().equals(name)) {
+                return m;
+            }
+        }
+        return CreateMachine.CRUSHING;
     }
 
     private static String str(JsonObject o, String key) {

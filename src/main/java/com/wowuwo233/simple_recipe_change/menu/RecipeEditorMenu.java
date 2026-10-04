@@ -1,5 +1,6 @@
 package com.wowuwo233.simple_recipe_change.menu;
 
+import com.wowuwo233.simple_recipe_change.kubejs.CreateMachine;
 import com.wowuwo233.simple_recipe_change.kubejs.Operation;
 import com.wowuwo233.simple_recipe_change.kubejs.RecipeIndexEntry;
 import com.wowuwo233.simple_recipe_change.kubejs.RecipeType;
@@ -47,7 +48,17 @@ public class RecipeEditorMenu extends AbstractContainerMenu {
     // 槽位坐标相对屏幕左上角 (leftPos, topPos)。
 
     public static final int IMAGE_WIDTH = 340;
-    public static final int IMAGE_HEIGHT = 346;
+    /**
+     * 窗口高度。
+     *
+     * <p>原本是 346（刚好放下搜索框 + 内容 + 控件 + 背包）。序列组装的界面要求
+     * 每步摆「机器按钮 + 原料格 + 废品格/概率」三行，346 根本塞不下，所以整体加高到 400。
+     *
+     * <p>做成<b>所有类型共用</b>而不是按类型变：窗口高度变了就得重建控件
+     * （{@code leftPos}/{@code topPos} 是 init 时算的），切换类型时重建会带出
+     * 一堆状态重置的坑；共用一套坐标最省事，代价只是别的类型下方多留了点空。
+     */
+    public static final int IMAGE_HEIGHT = 388;
     public static final int SLOT_SIZE = 18;
 
     /** 合成类：3×3 网格的行位置 */
@@ -97,6 +108,22 @@ public class RecipeEditorMenu extends AbstractContainerMenu {
      */
     public static final int FARMERS_LABEL_Y = 115;
 
+    /** 机械动力：材料 3×3 网格（9 格），产物在右侧，额外产物单独排一行 */
+    public static final int CREATE_GRID_X = 16;
+    public static final int CREATE_GRID_Y = 76;
+    public static final int CREATE_OUTPUT_X = 120;
+    /** 机械动力槽位标注共用的 y（3×3 网格止于 130，所以标在它下面） */
+    public static final int CREATE_LABEL_Y = 133;
+    /** 处理配方的材料格数（3×3） */
+    public static final int CREATE_MATERIAL_SLOTS = 9;
+    /**
+     * 机械动力的额外产物行。
+     *
+     * <p>比其它类型（{@link #EXTRA_ROW_Y}）低 19px——它的 3×3 材料网格多占一行，
+     * 用原来的 127 会压到网格第三行上。
+     */
+    public static final int CREATE_EXTRA_ROW_Y = 146;
+
     /** 切菜板的额外产物：4 个槽 + 4 个概率输入框，全部排在标注行下面 */
     public static final int EXTRA_OUTPUT_COUNT = 4;
     /** 额外产物借用容器里空着的下标（切菜板材料只用 0、1） */
@@ -105,15 +132,23 @@ public class RecipeEditorMenu extends AbstractContainerMenu {
     public static final int EXTRA_SLOT_X0 = 12;
     public static final int EXTRA_SLOT_STEP = 80;
 
-    /** 「物品用标签」开关的位置（在下面那排按钮的最右边） */
-    public static final int TAG_BUTTON_X = 268;
-    public static final int TAG_BUTTON_Y = 218;
+    /** 「物品用标签」开关的位置（在下面那排按钮的最右边） */    public static final int TAG_BUTTON_X = 268;
+    public static final int TAG_BUTTON_Y = 268;
     public static final int TAG_BUTTON_W = 60;
 
     /** 玩家背包 */
     public static final int PLAYER_X = 89;
-    public static final int PLAYER_Y = 262;
-    public static final int HOTBAR_Y = 320;
+    public static final int PLAYER_Y = 304;
+    public static final int HOTBAR_Y = 362;
+
+    /** 背包的实际 y（序列组装要往下让） */
+    public int playerY() {
+        return PLAYER_Y;
+    }
+
+    public int hotbarY() {
+        return HOTBAR_Y;
+    }
 
     /**
      * 搜索浮层打开时把所有槽位设为不可用。
@@ -192,9 +227,12 @@ public class RecipeEditorMenu extends AbstractContainerMenu {
      * <p>{@code Slot.x}/{@code Slot.y} 是 final，构造完就改不了，所以切换类型/模式时
      * 只能重建 {@code slots} 列表。槽位<b>顺序与数量在两端保持一致</b>，网络同步不受影响。
      *
-     * <p>注意：重建时不能再用 {@code addSlot()}——它还会往私有的
-     * {@code lastSlots}/{@code remoteSlots} 里追加。首次构建走 {@code addSlot()}，
-     * 之后只替换 {@code slots} 本身（槽位数只会减少，不会超过首次的长度）。
+     * <p><b>踩过的坑</b>：重建时不能无脑绕开 {@code addSlot()}。它除了往 {@code slots} 里加，
+     * 还会往私有的 {@code lastSlots}/{@code remoteSlots} 里加——而 {@code broadcastChanges()}
+     * 会按下标去读那两个列表。曾经以为「槽位数只会减少」，直到机械动力的布局
+     * （9 材料 + 1 产物 + 4 额外产物）超过了首次构建的 46 格，直接
+     * {@code IndexOutOfBoundsException: Index 46 out of bounds for length 46}。
+     * 现在由 {@link #place} 按下标判断：顶到已同步长度就走 {@code addSlot()} 把它撑大。
      */
     public void layoutSlots(boolean firstTime) {
         this.slots.clear();
@@ -221,6 +259,22 @@ public class RecipeEditorMenu extends AbstractContainerMenu {
                 place(new DisplaySlot(this.placeholder, 1, SMITH_BASE_X, ROW_Y), firstTime);
                 place(new DisplaySlot(this.placeholder, 2, SMITH_ADDITION_X, ROW_Y), firstTime);
                 place(new EditorSlot(this.output, 0, SMITH_OUTPUT_X, ROW_Y), firstTime);
+            }
+            case CREATE -> {
+                // 处理配方：材料 3×3（9 格），网格下方是标注行，再下面是额外产物行
+                for (int i = 0; i < CREATE_MATERIAL_SLOTS; i++) {
+                    place(new DisplaySlot(this.placeholder, i,
+                            CREATE_GRID_X + (i % 3) * SLOT_SIZE,
+                            CREATE_GRID_Y + (i / 3) * SLOT_SIZE), firstTime);
+                }
+                place(new EditorSlot(this.output, 0, CREATE_OUTPUT_X,
+                        CREATE_GRID_Y + SLOT_SIZE), firstTime);
+
+                int extra = extraOutputCount();
+                for (int i = 0; i < extra; i++) {
+                    place(new DisplaySlot(this.placeholder, EXTRA_OUTPUT_CONTAINER_BASE + i,
+                            EXTRA_SLOT_X0 + i * EXTRA_SLOT_STEP, CREATE_EXTRA_ROW_Y), firstTime);
+                }
             }
             case FARMERS -> {
                 if (recipeType == RecipeType.FARMERS_COOKING) {
@@ -252,11 +306,12 @@ public class RecipeEditorMenu extends AbstractContainerMenu {
         for (int row = 0; row < 3; row++) {
             for (int col = 0; col < 9; col++) {
                 place(new EditorSlot(this.playerInventory, col + row * 9 + 9,
-                        PLAYER_X + col * SLOT_SIZE, PLAYER_Y + row * SLOT_SIZE), firstTime);
+                        PLAYER_X + col * SLOT_SIZE, playerY() + row * SLOT_SIZE), firstTime);
             }
         }
         for (int col = 0; col < 9; col++) {
-            place(new EditorSlot(this.playerInventory, col, PLAYER_X + col * SLOT_SIZE, HOTBAR_Y), firstTime);
+            place(new EditorSlot(this.playerInventory, col,
+                    PLAYER_X + col * SLOT_SIZE, hotbarY()), firstTime);
         }
     }
 
@@ -272,9 +327,26 @@ public class RecipeEditorMenu extends AbstractContainerMenu {
         layoutSlots(false);
     }
 
+    /** 客户端版本的 {@link #applyLayout}：多带上 Create 机器，因为它决定副产物槽摆不摆 */
+    public void applyLayout(Operation newOperation, RecipeType newType, CreateMachine machine) {
+        setCreateMachine(machine);
+        applyLayout(newOperation, newType);
+    }
+
+    /**
+     * 通过 {@code addSlot()} 追加过的槽位总数——也就是 {@code AbstractContainerMenu} 里
+     * {@code lastSlots}/{@code remoteSlots} 的实际长度。
+     *
+     * <p>那两个列表是私有的，且<b>只有 addSlot 会让它们增长</b>。所以重建槽位时，
+     * 凡是下标已经顶到这个长度就必须走 addSlot，否则 {@code broadcastChanges()}
+     * 会拿越界下标去取它们，直接抛 IndexOutOfBoundsException。
+     */
+    private int syncedSlotCount = 0;
+
     private void place(Slot slot, boolean firstTime) {
-        if (firstTime) {
+        if (firstTime || this.slots.size() >= this.syncedSlotCount) {
             this.addSlot(slot);
+            this.syncedSlotCount = this.slots.size();
         } else {
             slot.index = this.slots.size();
             this.slots.add(slot);
@@ -315,7 +387,7 @@ public class RecipeEditorMenu extends AbstractContainerMenu {
             case CRAFTING -> GRID_SIZE;
             case COOKING -> 1;
             case SMITHING -> 3;
-            case FARMERS -> recipeType.inputSlotCount();
+            case FARMERS, CREATE -> recipeType.inputSlotCount();
         };
     }
 
@@ -324,9 +396,39 @@ public class RecipeEditorMenu extends AbstractContainerMenu {
         return inputMenuCount();
     }
 
-    /** 额外产物槽的数量（只有切菜板有） */
+    /**
+     * 当前选的 Create 机器。
+     *
+     * <p>槽位布局是服务端建的，而机器是客户端选的，所以它必须跟着 {@code SetModePacket}
+     * 同步过来——否则服务端不知道该不该给这台机器摆副产物槽。
+     */
+    private CreateMachine createMachine = CreateMachine.CRUSHING;
+
+    public void setCreateMachine(CreateMachine machine) {
+        this.createMachine = machine == null ? CreateMachine.CRUSHING : machine;
+    }
+
+    public CreateMachine getCreateMachine() {
+        return createMachine;
+    }
+
+    /**
+     * 额外产物槽的数量。
+     *
+     * <p>机械动力只在<b>真有副产物</b>的机器上显示：统计过 Create 自带的 1766 个官方配方，
+     * 只有粉碎（179/192 多产物）、研磨（159/222）、洗涤（9/38）、缠魂（1/21）有，
+     * 其余机器全是单产物——给它们摆副产物槽纯属误导。
+     */
     public int extraOutputCount() {
+        if (recipeType.isCreate()) {
+            return createMachine.hasByproducts() ? EXTRA_OUTPUT_COUNT : 0;
+        }
         return recipeType.hasMultipleOutputs() ? EXTRA_OUTPUT_COUNT : 0;
+    }
+
+    /** 副产物要不要带概率框 */
+    public boolean hasByproductChance() {
+        return recipeType.isCreate() ? createMachine.hasByproducts() : recipeType.hasChanceResults();
     }
 
     /** 玩家背包槽在 slots 列表里的起点（输入槽 → 产物格 → 额外产物 → 背包） */
@@ -337,7 +439,10 @@ public class RecipeEditorMenu extends AbstractContainerMenu {
     // ------------------------------------------------------------------ 模式
 
     /** 客户端切换操作或配方类型时调用（服务端执行） */
-    public void setMode(ServerPlayer player, Operation newOperation, RecipeType newType) {
+    public void setMode(ServerPlayer player, Operation newOperation, RecipeType newType,
+                        CreateMachine machine) {
+        // 机器要在 layoutSlots 之前设好——它决定副产物槽摆几个
+        setCreateMachine(machine);
         this.operation = newOperation;
         this.recipeType = newType;
         layoutSlots(false);
@@ -346,7 +451,7 @@ public class RecipeEditorMenu extends AbstractContainerMenu {
             this.lastFound = null;
             this.sourceRecipeId = "";
             // 添加模式服务端没有材料数据，绝不能覆盖客户端已放好的原料
-            ModNetwork.sendEditorState(player, this, List.of(), false, List.of());
+            ModNetwork.sendEditorState(player, this, List.of(), false, List.of(), 0, "", "");
             return;
         }
         handleOutputChanged(player);
@@ -384,7 +489,7 @@ public class RecipeEditorMenu extends AbstractContainerMenu {
         // 否则添加模式下「先放原料、再放产物」会把刚放好的原料清掉
         boolean replace = this.lastFound != null;
         ModNetwork.sendEditorState(player, this,
-                replace ? this.lastFound.cells() : List.of(), replace, List.of());
+                replace ? this.lastFound.cells() : List.of(), replace, List.of(), 0, "", "");
     }
 
     // ------------------------------------------------------------------ 载入已有配方
@@ -416,7 +521,7 @@ public class RecipeEditorMenu extends AbstractContainerMenu {
         this.lastFound = null;
         this.sourceRecipeId = "";
         if (player instanceof ServerPlayer serverPlayer) {
-            ModNetwork.sendEditorState(serverPlayer, this, List.of(), true, List.of());
+            ModNetwork.sendEditorState(serverPlayer, this, List.of(), true, List.of(), 0, "", "");
         }
     }
 

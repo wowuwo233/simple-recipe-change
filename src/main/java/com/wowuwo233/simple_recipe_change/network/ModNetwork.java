@@ -2,6 +2,7 @@ package com.wowuwo233.simple_recipe_change.network;
 
 import com.wowuwo233.simple_recipe_change.SimpleRecipeChangeMod;
 import com.wowuwo233.simple_recipe_change.client.ClientScreenHooks;
+import com.wowuwo233.simple_recipe_change.kubejs.CreateMachine;
 import com.wowuwo233.simple_recipe_change.kubejs.KubeJsFileWriter;
 import com.wowuwo233.simple_recipe_change.kubejs.Operation;
 import com.wowuwo233.simple_recipe_change.kubejs.RecipeDraft;
@@ -83,8 +84,10 @@ public final class ModNetwork {
         CHANNEL.sendToServer(new OpenEditorPacket());
     }
 
-    public static void requestSetMode(Operation operation, RecipeType type) {
-        CHANNEL.sendToServer(new SetModePacket(operation.ordinal(), type.ordinal()));
+    /** 客户端切换操作 / 类型 / Create 机器时调用（服务端执行） */
+    public static void requestSetMode(Operation operation, RecipeType type, CreateMachine machine) {
+        CHANNEL.sendToServer(new SetModePacket(operation.ordinal(), type.ordinal(),
+                machine == null ? 0 : machine.ordinal()));
     }
 
     public static void requestClearEditor() {
@@ -94,10 +97,12 @@ public final class ModNetwork {
     public static void requestSaveRecipe(String fileName, String recipeId, boolean shapeless,
                                          boolean mirrored, int typeOrdinal, int removeByOrdinal,
                                          double xp, int cookingTime, List<String> inputCells,
-                                         List<RecipeDraft.ExtraOutput> extraOutputs) {
+                                         List<RecipeDraft.ExtraOutput> extraOutputs,
+                                         int machineOrdinal, String heat, String note) {
         CHANNEL.sendToServer(new SaveRecipePacket(fileName, recipeId, shapeless, mirrored,
                 typeOrdinal, removeByOrdinal, xp, cookingTime, encodeCells(inputCells),
-                encodeExtraOutputs(extraOutputs)));
+                encodeExtraOutputs(extraOutputs), machineOrdinal, heat == null ? "" : heat,
+                note == null ? "" : note));
     }
 
     /** 客户端请求重新加载资源（等同 /reload），让 KubeJS 立刻读到刚写好的脚本 */
@@ -142,7 +147,8 @@ public final class ModNetwork {
      */
     public static void sendEditorState(ServerPlayer player, RecipeEditorMenu menu,
                                        List<String> inputCells, boolean replaceInputs,
-                                       List<RecipeDraft.ExtraOutput> extraOutputs) {
+                                       List<RecipeDraft.ExtraOutput> extraOutputs,
+                                       int machineOrdinal, String heat, String note) {
         VanillaRecipeLookup.Found found = menu.getLastFound();
         CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), new EditorStatePacket(
                 menu.getOperation().ordinal(),
@@ -154,7 +160,10 @@ public final class ModNetwork {
                 replaceInputs,
                 found == null ? 0D : found.xp(),
                 found == null ? RecipeDraft.DEFAULT_COOKING_TIME : found.cookingTime(),
-                encodeExtraOutputs(extraOutputs)));
+                encodeExtraOutputs(extraOutputs),
+                machineOrdinal,
+                heat == null ? "" : heat,
+                note == null ? "" : note));
     }
 
     /** 从「我的配方」载入后推送完整状态，包含要回填到输入框的文本与输入槽材料 */
@@ -164,7 +173,8 @@ public final class ModNetwork {
                 entry.type().ordinal(), entry.shapeless(), entry.mirrored(), true,
                 entry.recipeId(), entry.fileName(), entry.sourceRecipeId(),
                 false, "", encodeCells(entry.cells()), true,
-                entry.xp(), entry.cookingTime(), encodeExtraOutputs(entry.extraOutputs())));
+                entry.xp(), entry.cookingTime(), encodeExtraOutputs(entry.extraOutputs()),
+                entry.machine().ordinal(), entry.heat(), entry.note()));
     }
 
     /** 写文件属于管理操作：专用服务器要求 OP，单人游戏直接放行 */
@@ -282,14 +292,15 @@ public final class ModNetwork {
 
     // ================================================================== 切换模式
 
-    public record SetModePacket(int operationOrdinal, int typeOrdinal) {
+    public record SetModePacket(int operationOrdinal, int typeOrdinal, int machineOrdinal) {
         public static void encode(SetModePacket msg, FriendlyByteBuf buf) {
             buf.writeVarInt(msg.operationOrdinal);
             buf.writeVarInt(msg.typeOrdinal);
+            buf.writeVarInt(msg.machineOrdinal);
         }
 
         public static SetModePacket decode(FriendlyByteBuf buf) {
-            return new SetModePacket(buf.readVarInt(), buf.readVarInt());
+            return new SetModePacket(buf.readVarInt(), buf.readVarInt(), buf.readVarInt());
         }
 
         public static void handle(SetModePacket msg, Supplier<NetworkEvent.Context> ctxSupplier) {
@@ -298,7 +309,8 @@ public final class ModNetwork {
                 ServerPlayer player = ctx.getSender();
                 if (player != null && player.containerMenu instanceof RecipeEditorMenu menu) {
                     menu.setMode(player, Operation.byOrdinal(msg.operationOrdinal),
-                            RecipeType.byOrdinal(msg.typeOrdinal));
+                            RecipeType.byOrdinal(msg.typeOrdinal),
+                            CreateMachine.byOrdinal(msg.machineOrdinal));
                 }
             });
             ctx.setPacketHandled(true);
@@ -333,7 +345,8 @@ public final class ModNetwork {
                                    boolean shapeless, boolean mirrored,
                                    int typeOrdinal, int removeByOrdinal,
                                    double xp, int cookingTime, String inputCells,
-                                   String extraOutputs) {
+                                   String extraOutputs, int machineOrdinal, String heat,
+                                   String note) {
 
         public static void encode(SaveRecipePacket msg, FriendlyByteBuf buf) {
             buf.writeUtf(msg.fileName == null ? "" : msg.fileName, 256);
@@ -346,12 +359,16 @@ public final class ModNetwork {
             buf.writeVarInt(msg.cookingTime);
             buf.writeUtf(msg.inputCells == null ? "" : msg.inputCells, 2048);
             buf.writeUtf(msg.extraOutputs == null ? "" : msg.extraOutputs, 2048);
+            buf.writeVarInt(msg.machineOrdinal);
+            buf.writeUtf(msg.heat == null ? "" : msg.heat, 64);
+            buf.writeUtf(msg.note == null ? "" : msg.note, 512);
         }
 
         public static SaveRecipePacket decode(FriendlyByteBuf buf) {
             return new SaveRecipePacket(buf.readUtf(256), buf.readUtf(256),
                     buf.readBoolean(), buf.readBoolean(), buf.readVarInt(), buf.readVarInt(),
-                    buf.readDouble(), buf.readVarInt(), buf.readUtf(2048), buf.readUtf(2048));
+                    buf.readDouble(), buf.readVarInt(), buf.readUtf(2048), buf.readUtf(2048),
+                    buf.readVarInt(), buf.readUtf(64), buf.readUtf(512));
         }
 
         public static void handle(SaveRecipePacket msg, Supplier<NetworkEvent.Context> ctxSupplier) {
@@ -389,7 +406,11 @@ public final class ModNetwork {
                         msg.xp(),
                         msg.cookingTime(),
                         decodeExtraOutputs(msg.extraOutputs()),
-                        "");
+                        "",
+                        CreateMachine.byOrdinal(msg.machineOrdinal()),
+                        msg.heat(),
+                        false,
+                        msg.note());
 
                 KubeJsFileWriter.Result result = KubeJsFileWriter.save(draft, msg.fileName());
                 sendSaveResult(player, result.ok(), result.message(), result.path());
@@ -546,7 +567,8 @@ public final class ModNetwork {
                                     String recipeId, String fileName, String sourceRecipeId,
                                     boolean found, String foundSummary, String inputCells,
                                     boolean replaceInputs,
-                                    double xp, int cookingTime, String extraOutputs) {
+                                    double xp, int cookingTime, String extraOutputs,
+                                    int machineOrdinal, String heat, String note) {
 
         public static void encode(EditorStatePacket msg, FriendlyByteBuf buf) {
             buf.writeVarInt(msg.operationOrdinal);
@@ -564,6 +586,9 @@ public final class ModNetwork {
             buf.writeDouble(msg.xp);
             buf.writeVarInt(msg.cookingTime);
             buf.writeUtf(msg.extraOutputs == null ? "" : msg.extraOutputs, 2048);
+            buf.writeVarInt(msg.machineOrdinal);
+            buf.writeUtf(msg.heat == null ? "" : msg.heat, 64);
+            buf.writeUtf(msg.note == null ? "" : msg.note, 512);
         }
 
         public static EditorStatePacket decode(FriendlyByteBuf buf) {
@@ -571,7 +596,8 @@ public final class ModNetwork {
                     buf.readBoolean(), buf.readBoolean(), buf.readBoolean(),
                     buf.readUtf(256), buf.readUtf(256), buf.readUtf(256),
                     buf.readBoolean(), buf.readUtf(1024), buf.readUtf(2048),
-                    buf.readBoolean(), buf.readDouble(), buf.readVarInt(), buf.readUtf(2048));
+                    buf.readBoolean(), buf.readDouble(), buf.readVarInt(), buf.readUtf(2048),
+                    buf.readVarInt(), buf.readUtf(64), buf.readUtf(512));
         }
 
         public static void handle(EditorStatePacket msg, Supplier<NetworkEvent.Context> ctxSupplier) {
