@@ -39,7 +39,22 @@ public enum RecipeType {
      * 处理时间 + 热度），所以界面上只做一个类型，具体机器由 {@link CreateMachine} 切换，
      * 新增机器不用改界面代码。
      */
-    CREATE_PROCESSING("create_processing", "机械动力 · 处理配方", "处理", Category.CREATE, 9, 1);
+    CREATE_PROCESSING("create_processing", "机械动力 · 处理配方", "处理", Category.CREATE, 9, 1),
+    /**
+     * 机械动力 · 序列组装。
+     *
+     * <p>和其它类型不同，它是一串<b>子配方</b>：输入物品先变成「过渡物品」，再按顺序经过
+     * 部署 / 压印 / 切割若干步，循环若干次后产出结果。所以 {@code cells} 的含义是：
+     * <ul>
+     *   <li>0 = 输入物品，1 = 过渡物品</li>
+     *   <li>2..5 = 四步各自要额外消耗的物品（只有部署步需要；压印/切割只用过渡物品本身）</li>
+     * </ul>
+     *
+     * <p>步骤类型不另开字段，复用 {@code heat} 这个字符串（本类型不用热度），
+     * 按逗号分隔存 {@code deploying,pressing,...}；循环次数复用 {@code cookingTime}。
+     * 这样索引、网络包都不用改结构，代价是字段语义要在这里写清楚。
+     */
+    CREATE_SEQUENCED("create_sequenced", "机械动力 · 序列组装", "序列组装", Category.CREATE, 6, 1);
 
     /** 配方大类，决定界面布局与生成方式 */
     public enum Category {
@@ -139,6 +154,7 @@ public enum RecipeType {
             case FARMERS_COOKING -> new String[]{"材料", "材料", "材料", "材料", "材料", "材料", "容器"};
             case FARMERS_CUTTING -> new String[]{"材料", "工具"};
             case CREATE_PROCESSING -> new String[]{"材料"};
+            case CREATE_SEQUENCED -> new String[]{"输入物品", "过渡物品", "步骤 1", "步骤 2", "步骤 3", "步骤 4"};
         };
     }
 
@@ -166,6 +182,9 @@ public enum RecipeType {
 
     /** 时间输入框上方那行说明 */
     public String timeFieldLabel() {
+        if (isSequenced()) {
+            return "循环次数（默认 4）";
+        }
         if (isCreate()) {
             return "处理时间（tick，默认 100）";
         }
@@ -188,23 +207,29 @@ public enum RecipeType {
         return category == Category.CREATE;
     }
 
-    /** 是不是「多个产物」的类型（切菜板 + Create 处理配方） */
+    /** 是不是「多个产物」的类型（切菜板 + Create 处理配方）；序列组装只做单产物 */
     public boolean hasMultipleOutputs() {
-        return this == FARMERS_CUTTING || isCreate();
+        return this == FARMERS_CUTTING || (isCreate() && !isSequenced());
     }
 
-    /** 处理时间默认值：Create 100 tick、营火 600 tick、其余（熔炉等）200 tick */
+    /** 机械动力 · 序列组装（步骤是一串子配方，界面和生成方式都特殊） */
+    public boolean isSequenced() {
+        return this == CREATE_SEQUENCED;
+    }
+
+    /** 处理时间默认值：Create 100 tick、营火 600 tick、其余（熔炉等）200 tick；序列组装这里是循环次数默认 4 */
     public int defaultProcessingTime() {
         return switch (this) {
             case CREATE_PROCESSING -> 100;
+            case CREATE_SEQUENCED -> 4;
             case CAMPFIRE -> 600;
             default -> 200;
         };
     }
 
-    /** 需不需要「热度」这个参数（只有 Create 的处理配方有） */
+    /** 需不需要「热度」这个参数（只有 Create 的处理配方有；序列组装没有） */
     public boolean hasHeatRequirement() {
-        return isCreate();
+        return isCreate() && !isSequenced();
     }
 
     /** 切菜板专用：工具槽是否必填 */
@@ -234,6 +259,7 @@ public enum RecipeType {
             case FARMERS_CUTTING -> "cutting";
             // Create 的真实方法名由具体机器决定，见 CreateMachine#eventPath
             case CREATE_PROCESSING -> "processing";
+            case CREATE_SEQUENCED -> "sequenced_assembly";
         };
     }
 

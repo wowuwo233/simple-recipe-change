@@ -166,6 +166,15 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
     private boolean outputHasNbt = false;
 
     /**
+     * 序列组装的 4 个步骤。
+     *
+     * <p>步骤类型只存在客户端，保存时编码进 {@code heat} 字段（这个类型不用热度），
+     * 服务端和索引都不需要为它改结构。
+     */
+    private final Button[] seqButtons = new Button[RecipeEditorMenu.SEQ_STEP_COUNT];
+    private final String[] seqKinds = {"deploying", "deploying", "deploying", "deploying"};
+
+    /**
      * 机械动力的具体机器与热度要求。
      *
      * <p>这两个控件<b>复用「无序」和「镜像」两个按钮槽</b>——那两个按钮本来就只对合成类
@@ -433,6 +442,22 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
                 "产物带 NBT（附魔 / 药水 / 自定义名称）时，是否把这些标签写进脚本。\n"
                         + "产物格里的物品没有 NBT 时本项无效。")));
 
+        // 序列组装的 4 个步骤：按钮选机器，下面一格放这一步额外消耗的物品
+        for (int i = 0; i < this.seqButtons.length; i++) {
+            final int index = i;
+            this.seqButtons[i] = this.addRenderableWidget(Button.builder(
+                            Component.literal(seqButtonLabel(i)), b -> {
+                                this.seqKinds[index] = nextSeqKind(this.seqKinds[index]);
+                                refreshButtonStates();
+                                updateWidgetVisibility();
+                            })
+                    .bounds(this.leftPos + RecipeEditorMenu.SEQ_BUTTON_X0
+                                    + i * RecipeEditorMenu.SEQ_BUTTON_STEP,
+                            this.topPos + RecipeEditorMenu.SEQ_BUTTON_Y,
+                            RecipeEditorMenu.SEQ_BUTTON_W, 18)
+                    .build());
+        }
+
         // 控件都建好之后再统一摆一次位置与可见性：
         // init 前半段调用的那次是在字段创建之前，改不到它们。
         refreshButtonStates();
@@ -484,10 +509,12 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
         // 注意：不能用 menu.getRecipeType() 反写回本地类型——客户端菜单对象更新得比这里晚，
         // 那样会把刚切换的类型直接抹掉，表现为「类型点不动」。
         this.menu.applyLayout(this.operation, this.recipeType, this.createMachine);
-        // 处理时间的默认值随类型走：原版烧炼 200 tick，机械动力 100 tick
+        // 处理时间的默认值随类型走：原版烧炼 200 tick，机械动力 100 tick，序列组装是循环次数 4
         if (this.timeField != null) {
             this.timeField.setValue(String.valueOf(this.recipeType.defaultProcessingTime()));
         }
+        // 类型换了，步骤按钮/循环次数框的可见性与位置也要跟着换
+        updateWidgetVisibility();
     }
 
     /**
@@ -531,15 +558,21 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
         boolean adding = this.operation == Operation.ADD;
         boolean crafting = this.recipeType.isCrafting();
         boolean create = this.recipeType.isCreate();
+        boolean sequenced = this.recipeType.isSequenced();
         if (this.shapelessButton != null) {
-            // Create 下「机器」始终可点；合成本来就是 (添加 && 合成)
-            this.shapelessButton.active = create || (adding && crafting);
+            // Create 下「机器」始终可点；序列组装的步骤在下面单独选，这里不用
+            this.shapelessButton.active = !sequenced && (create || (adding && crafting));
             this.shapelessButton.setMessage(Component.literal(shapelessLabel()));
         }
         if (this.mirrorButton != null) {
             // Create 下「热度」始终可点；镜像只在有序合成且未勾无序时才有意义
-            this.mirrorButton.active = create || (adding && crafting && !this.shapeless);
+            this.mirrorButton.active = !sequenced && (create || (adding && crafting && !this.shapeless));
             this.mirrorButton.setMessage(Component.literal(mirrorLabel()));
+        }
+        for (int i = 0; i < this.seqButtons.length; i++) {
+            if (this.seqButtons[i] != null) {
+                this.seqButtons[i].setMessage(Component.literal(seqButtonLabel(i)));
+            }
         }
     }
 
@@ -597,6 +630,40 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
             return "产物NBT：无";
         }
         return "产物NBT：" + (this.carryOutputNbt ? "是" : "否");
+    }
+
+    /** 序列组装可用的步骤类型。灌装要流体，本模组不处理流体，所以不提供 */
+    private static final String[] SEQ_KIND_CYCLE = {"deploying", "pressing", "cutting"};
+
+    private static String nextSeqKind(String kind) {
+        for (int i = 0; i < SEQ_KIND_CYCLE.length; i++) {
+            if (SEQ_KIND_CYCLE[i].equals(kind)) {
+                return SEQ_KIND_CYCLE[(i + 1) % SEQ_KIND_CYCLE.length];
+            }
+        }
+        return SEQ_KIND_CYCLE[0];
+    }
+
+    private static String seqKindName(String kind) {
+        return switch (kind) {
+            case "pressing" -> "压印";
+            case "cutting" -> "切割";
+            default -> "部署";
+        };
+    }
+
+    private String seqButtonLabel(int index) {
+        return (index + 1) + " " + seqKindName(this.seqKinds[index]);
+    }
+
+    /** 从索引/网络包里的 heat 字段还原 4 个步骤类型 */
+    private void decodeSeqKinds(String encoded) {
+        String[] parts = encoded == null ? new String[0] : encoded.split(",");
+        for (int i = 0; i < this.seqKinds.length; i++) {
+            this.seqKinds[i] = i < parts.length && !parts[i].isBlank()
+                    ? parts[i].trim() : "deploying";
+        }
+        refreshButtonStates();
     }
 
     /**
@@ -724,9 +791,24 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
             timeField.visible = visible && time;
             if (!timeField.visible) {
                 timeField.setFocused(false);
+            } else if (this.recipeType.isSequenced()) {
+                // 序列组装没有经验行，循环次数框挪到第一行右侧，别压住步骤按钮
+                this.timeField.setX(this.leftPos + RecipeEditorMenu.SEQ_LOOPS_X);
+                this.timeField.setY(this.topPos + RecipeEditorMenu.SEQ_LOOPS_Y);
+                this.timeField.setWidth(RecipeEditorMenu.SEQ_LOOPS_W);
             } else {
+                this.timeField.setX(this.leftPos + FIELD_X);
+                this.timeField.setWidth(FIELD_W);
                 // 没有经验那一行时把时间/循环框挪上去，否则会压到额外产物格
                 this.timeField.setY(this.topPos + (twoRows ? TIME_FIELD_Y_TWO_ROWS : TIME_FIELD_Y));
+            }
+        }
+
+        // 步骤按钮只有序列组装才有
+        boolean sequenced = this.recipeType.isSequenced();
+        for (Button button : this.seqButtons) {
+            if (button != null) {
+                button.visible = visible && sequenced;
             }
         }
 
@@ -811,6 +893,9 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
             // 机械动力的机器与热度跟着载入
             this.createMachine = CreateMachine.byOrdinal(msg.machineOrdinal());
             this.createHeat = msg.heat() == null ? "" : msg.heat();
+            if (newType.isSequenced()) {
+                decodeSeqKinds(this.createHeat);
+            }
             if (this.noteField != null) {
                 this.noteField.setValue(msg.note() == null ? "" : msg.note());
             }
@@ -936,9 +1021,15 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
         // 时间框：烧制时间 / 处理时间——之前被 hasCookingSettings 一起挡住了，
         // 导致机械动力那个框光秃秃的没有标签
         if (this.recipeType.hasTimeField()) {
-            int ty = twoFieldRows() ? TIME_FIELD_Y_TWO_ROWS : TIME_FIELD_Y;
-            graphics.drawString(this.font, this.recipeType.timeFieldLabel(), FIELD_X, ty - 10,
-                    COLOR_LABEL, false);
+            if (this.recipeType.isSequenced()) {
+                graphics.drawString(this.font, this.recipeType.timeFieldLabel(),
+                        RecipeEditorMenu.SEQ_LOOPS_X, RecipeEditorMenu.SEQ_LOOPS_Y - 10,
+                        COLOR_LABEL, false);
+            } else {
+                int ty = twoFieldRows() ? TIME_FIELD_Y_TWO_ROWS : TIME_FIELD_Y;
+                graphics.drawString(this.font, this.recipeType.timeFieldLabel(), FIELD_X, ty - 10,
+                        COLOR_LABEL, false);
+            }
         }
 
         renderFoundInfo(graphics);
@@ -949,7 +1040,9 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
         int inputs = this.recipeType.inputSlotCount();
         String[] labels = this.recipeType.inputLabels();
 
-        if (this.recipeType.isCrafting()) {
+        if (this.recipeType.isSequenced()) {
+            drawSequencedLabels(graphics);
+        } else if (this.recipeType.isCrafting()) {
             Slot first = this.menu.slots.get(0);
             graphics.drawString(this.font, labels[0], first.x,
                     RecipeEditorMenu.CRAFT_GRID_Y + 3 * RecipeEditorMenu.SLOT_SIZE + 3,
@@ -982,6 +1075,21 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
      */
     private boolean twoFieldRows() {
         return this.recipeType.hasCookingSettings() && this.recipeType.hasTimeField();
+    }
+
+    /** 序列组装的槽位标注：第一行三个 + 四个步骤 */
+    private void drawSequencedLabels(GuiGraphics graphics) {
+        graphics.drawString(this.font, "输入物品", RecipeEditorMenu.SEQ_INPUT_X,
+                RecipeEditorMenu.SEQ_ROW_Y + 22, COLOR_SLOT_LABEL, false);
+        graphics.drawString(this.font, "过渡物品", RecipeEditorMenu.SEQ_TRANSITIONAL_X,
+                RecipeEditorMenu.SEQ_ROW_Y + 22, COLOR_SLOT_LABEL, false);
+        graphics.drawString(this.font, "产物", RecipeEditorMenu.SEQ_OUTPUT_X,
+                RecipeEditorMenu.SEQ_ROW_Y + 22, COLOR_SLOT_LABEL, false);
+        for (int i = 0; i < RecipeEditorMenu.SEQ_STEP_COUNT; i++) {
+            int x = RecipeEditorMenu.SEQ_BUTTON_X0 + i * RecipeEditorMenu.SEQ_BUTTON_STEP;
+            graphics.drawString(this.font, "步骤 " + (i + 1), x + 12,
+                    RecipeEditorMenu.SEQ_LABEL_Y, COLOR_SLOT_LABEL, false);
+        }
     }
 
     /**
@@ -1371,6 +1479,11 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
         if (this.operation == Operation.REMOVE) {
             return true;
         }
+        // 序列组装：压印 / 切割只用过渡物品本身，不需要额外材料，对应格子禁用
+        if (this.recipeType.isSequenced() && index >= 2) {
+            int step = index - 2;
+            return step >= this.seqKinds.length || !"deploying".equals(this.seqKinds[step]);
+        }
         if (!this.recipeType.isCrafting()) {
             return false;
         }
@@ -1400,6 +1513,10 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
                     cells.set(i, tag);
                 }
             }
+        }
+        if (this.recipeType.isSequenced()) {
+            // 步骤类型编码进 heat（本类型不用热度），服务端与索引都不必改结构
+            this.createHeat = String.join(",", this.seqKinds);
         }
         ModNetwork.requestSaveRecipe(
                 this.fileField.getValue(),

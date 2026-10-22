@@ -123,6 +123,31 @@ public class RecipeEditorMenu extends AbstractContainerMenu {
     public static final int CREATE_LABEL_Y = 133;
     /** 处理配方的材料格数（3×3） */
     public static final int CREATE_MATERIAL_SLOTS = 9;
+
+    /**
+     * 机械动力 · 序列组装。
+     *
+     * <p>第一行是「输入物品 / 过渡物品 / 产物」，下面一排 4 个步骤：
+     * 每个步骤上面一个按钮（部署 / 压印 / 切割），下面一个材料格。
+     */
+    public static final int SEQ_STEP_COUNT = 4;
+    public static final int SEQ_ROW_Y = 76;
+    public static final int SEQ_INPUT_X = 16;
+    public static final int SEQ_TRANSITIONAL_X = 76;
+    public static final int SEQ_OUTPUT_X = 136;
+    /** 步骤按钮的 x 与间距（按钮宽 72，槽位在按钮下方居中） */
+    public static final int SEQ_BUTTON_X0 = 16;
+    public static final int SEQ_BUTTON_STEP = 78;
+    public static final int SEQ_BUTTON_Y = 112;
+    public static final int SEQ_BUTTON_W = 72;
+    public static final int SEQ_SLOT_Y = 136;
+    /** 步骤材料格在按钮下方的居中偏移 */
+    public static final int SEQ_SLOT_INSET = 27;
+    public static final int SEQ_LABEL_Y = 156;
+    /** 循环次数输入框的位置（第一行右侧，输入/过渡/产物止于 154） */
+    public static final int SEQ_LOOPS_X = 180;
+    public static final int SEQ_LOOPS_Y = 76;
+    public static final int SEQ_LOOPS_W = 60;
     /**
      * 机械动力的额外产物行。
      *
@@ -273,19 +298,31 @@ public class RecipeEditorMenu extends AbstractContainerMenu {
                 place(new EditorSlot(this.output, 0, SMITH_OUTPUT_X, ROW_Y), firstTime);
             }
             case CREATE -> {
-                // 处理配方：材料 3×3（9 格），网格下方是标注行，再下面是额外产物行
-                for (int i = 0; i < CREATE_MATERIAL_SLOTS; i++) {
-                    place(new DisplaySlot(this.placeholder, i,
-                            CREATE_GRID_X + (i % 3) * SLOT_SIZE,
-                            CREATE_GRID_Y + (i / 3) * SLOT_SIZE), firstTime);
-                }
-                place(new EditorSlot(this.output, 0, CREATE_OUTPUT_X,
-                        CREATE_GRID_Y + SLOT_SIZE), firstTime);
+                if (recipeType.isSequenced()) {
+                    // 输入 → 过渡物品 → 产物 一行，下面 4 个步骤（槽位由客户端画按钮）
+                    place(new DisplaySlot(this.placeholder, 0, SEQ_INPUT_X, SEQ_ROW_Y), firstTime);
+                    place(new DisplaySlot(this.placeholder, 1, SEQ_TRANSITIONAL_X, SEQ_ROW_Y), firstTime);
+                    place(new EditorSlot(this.output, 0, SEQ_OUTPUT_X, SEQ_ROW_Y), firstTime);
+                    for (int i = 0; i < SEQ_STEP_COUNT; i++) {
+                        place(new DisplaySlot(this.placeholder, 2 + i,
+                                SEQ_BUTTON_X0 + i * SEQ_BUTTON_STEP + SEQ_SLOT_INSET,
+                                SEQ_SLOT_Y), firstTime);
+                    }
+                } else {
+                    // 处理配方：材料 3×3（9 格），网格下方是标注行，再下面是额外产物行
+                    for (int i = 0; i < CREATE_MATERIAL_SLOTS; i++) {
+                        place(new DisplaySlot(this.placeholder, i,
+                                CREATE_GRID_X + (i % 3) * SLOT_SIZE,
+                                CREATE_GRID_Y + (i / 3) * SLOT_SIZE), firstTime);
+                    }
+                    place(new EditorSlot(this.output, 0, CREATE_OUTPUT_X,
+                            CREATE_GRID_Y + SLOT_SIZE), firstTime);
 
-                int extra = extraOutputCount();
-                for (int i = 0; i < extra; i++) {
-                    place(new DisplaySlot(this.placeholder, EXTRA_OUTPUT_CONTAINER_BASE + i,
-                            EXTRA_SLOT_X0 + i * EXTRA_SLOT_STEP, CREATE_EXTRA_ROW_Y), firstTime);
+                    int extra = extraOutputCount();
+                    for (int i = 0; i < extra; i++) {
+                        place(new DisplaySlot(this.placeholder, EXTRA_OUTPUT_CONTAINER_BASE + i,
+                                EXTRA_SLOT_X0 + i * EXTRA_SLOT_STEP, CREATE_EXTRA_ROW_Y), firstTime);
+                    }
                 }
             }
             case FARMERS -> {

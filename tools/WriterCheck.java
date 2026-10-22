@@ -32,6 +32,7 @@ public class WriterCheck {
         smithingRecipe();
         farmersDelight();
         createProcessing();
+        sequencedAssembly();
         outputNbt();
 
         System.out.println();
@@ -133,6 +134,65 @@ public class WriterCheck {
         check("换 2×2 后只剩 4 格", draft.cells().size() == 4);
         check("左上角保留", "minecraft:oak_planks".equals(draft.cell(0, 0)));
         check("第 2 行不错位", "minecraft:stick".equals(draft.cell(1, 1)));
+    }
+
+    static void sequencedAssembly() {
+        List<String> cells = blank(9);
+        cells.set(0, "create:golden_sheet");                        // 输入
+        cells.set(1, "create:incomplete_precision_mechanism");      // 过渡物品
+        cells.set(2, "create:cogwheel");                            // 步骤 1
+        cells.set(3, "create:large_cogwheel");                      // 步骤 2
+        cells.set(4, "minecraft:iron_nugget");                      // 步骤 3
+
+        RecipeDraft d = new RecipeDraft(RecipeType.CREATE_SEQUENCED, false, true,
+                "simple_recipe_change:precision_mechanism", cells,
+                "create:precision_mechanism", 1, Operation.ADD, RemoveBy.OUTPUT,
+                "", 0D, 5)
+                .withHeat("deploying,deploying,deploying");
+        String call = KubeJsWriter.renderRecipeCall(d, "simple_recipe_change");
+        section("机械动力 · 序列组装");
+        System.out.println(call);
+
+        check("用 sequenced_assembly", call.contains("event.recipes.create.sequenced_assembly("));
+        check("输入物品", call.contains("'create:golden_sheet'"));
+        check("过渡物品写在末尾", call.contains(
+                ".transitionalItem('create:incomplete_precision_mechanism')"));
+        check("循环次数", call.contains(".loops(5)"));
+        check("部署步骤是嵌套配方", call.contains("event.recipes.create.deploying("));
+        check("部署步骤带材料", call.contains("'create:cogwheel'"));
+        check("三个部署步骤", occurrences(call, "event.recipes.create.deploying(") == 3);
+
+        // 压印 / 切割不需要额外材料
+        RecipeDraft plain = new RecipeDraft(RecipeType.CREATE_SEQUENCED, false, true,
+                "simple_recipe_change:seq_press", blank(9),
+                "create:precision_mechanism", 1, Operation.ADD, RemoveBy.OUTPUT,
+                "", 0D, 2)
+                .withHeat("pressing,cutting");
+        List<String> c = new ArrayList<>(plain.cells());
+        c.set(0, "create:golden_sheet");
+        c.set(1, "create:incomplete_precision_mechanism");
+        String press = KubeJsWriter.renderRecipeCall(plain.withCells(c), "x");
+        check("压印只用过渡物品", press.contains(
+                "event.recipes.create.pressing('create:incomplete_precision_mechanism', "
+                        + "'create:incomplete_precision_mechanism')"));
+        check("切割只用过渡物品", press.contains("event.recipes.create.cutting("));
+        check("循环次数 2", press.contains(".loops(2)"));
+
+        // 部署步骤缺材料要报错
+        RecipeDraft bad = new RecipeDraft(RecipeType.CREATE_SEQUENCED, false, true, "",
+                c, "create:precision_mechanism", 1, Operation.ADD, RemoveBy.OUTPUT, "", 0D, 1)
+                .withHeat("deploying");
+        expectError("部署步骤缺材料时报错", () -> KubeJsWriter.renderRecipeCall(bad, "x"));
+    }
+
+    private static int occurrences(String text, String needle) {
+        int count = 0;
+        int index = 0;
+        while ((index = text.indexOf(needle, index)) >= 0) {
+            count++;
+            index += needle.length();
+        }
+        return count;
     }
 
     static void outputNbt() {

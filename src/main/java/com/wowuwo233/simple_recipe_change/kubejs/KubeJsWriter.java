@@ -153,7 +153,13 @@ public final class KubeJsWriter {
                     appendFarmersCutting(sb, d, output);
                 }
             }
-            case CREATE -> appendCreate(sb, d, output);
+            case CREATE -> {
+                if (d.type().isSequenced()) {
+                    appendSequenced(sb, d, output);
+                } else {
+                    appendCreate(sb, d, output);
+                }
+            }
         }
 
         sb.append(".id('").append(recipeId).append("')");
@@ -359,6 +365,78 @@ public final class KubeJsWriter {
         if (machine.hasKeepHeldItem() && d.keepHeldItem()) {
             sb.append(".keepHeldItem(true)");
         }
+    }
+
+    /**
+     * 机械动力 · 序列组装。
+     *
+     * <p>生成形如：
+     * <pre>
+     * event.recipes.create.sequenced_assembly(
+     *   ['1x create:precision_mechanism'],
+     *   'create:golden_sheet',
+     *   [
+     *     event.recipes.create.deploying('create:incomplete_precision_mechanism',
+     *       ['create:incomplete_precision_mechanism', 'create:cogwheel']),
+     *     event.recipes.create.pressing('create:incomplete_precision_mechanism',
+     *       'create:incomplete_precision_mechanism')
+     *   ]
+     * ).transitionalItem('create:incomplete_precision_mechanism').loops(5)
+     * </pre>
+     *
+     * <p>三个约定（来自 KubeJS Create 的 schema）：
+     * <ul>
+     *   <li>序列里每一步都是<b>嵌套配方</b>，输入和输出都必须是过渡物品</li>
+     *   <li>只有 deploying 需要额外材料，pressing / cutting 只用过渡物品本身</li>
+     *   <li>灌装要流体，本模组不处理流体，所以不提供</li>
+     * </ul>
+     */
+    private static void appendSequenced(StringBuilder sb, RecipeDraft d, String output) {
+        List<String> in = d.inputCells();
+        String input = nthNonBlank(in, 0, "请把输入物品放进输入格");
+        String transitional = nthNonBlank(in, 1, "请把过渡物品放进过渡格");
+
+        String[] kinds = d.heat() == null ? new String[0] : d.heat().split(",");
+        List<String> steps = new ArrayList<>();
+        for (int i = 0; i < kinds.length && i < 4; i++) {
+            String kind = kinds[i] == null ? "" : kinds[i].trim();
+            if (kind.isEmpty()) {
+                continue;
+            }
+            String stepItem = i + 2 < in.size() ? in.get(i + 2) : null;
+            switch (kind) {
+                case "deploying" -> {
+                    if (stepItem == null || stepItem.isBlank()) {
+                        throw new IllegalArgumentException(
+                                "第 " + (i + 1) + " 步是「部署」，请放入这一步要消耗的物品");
+                    }
+                    steps.add("event.recipes.create.deploying(\n"
+                            + "      '" + transitional + "',\n"
+                            + "      ['" + transitional + "', '" + stepItem + "']\n"
+                            + "    )");
+                }
+                case "pressing" -> steps.add("event.recipes.create.pressing('"
+                        + transitional + "', '" + transitional + "')");
+                case "cutting" -> steps.add("event.recipes.create.cutting('"
+                        + transitional + "', '" + transitional + "')");
+                default -> throw new IllegalArgumentException("未知的步骤类型：" + kind);
+            }
+        }
+        if (steps.isEmpty()) {
+            throw new IllegalArgumentException("序列组装至少要有一个步骤");
+        }
+
+        sb.append("event.recipes.create.sequenced_assembly(\n");
+        sb.append("  [").append(output).append("],\n");
+        sb.append("  '").append(input).append("',\n");
+        sb.append("  [\n");
+        for (int i = 0; i < steps.size(); i++) {
+            sb.append("    ").append(steps.get(i));
+            sb.append(i < steps.size() - 1 ? ",\n" : "\n");
+        }
+        sb.append("  ]\n");
+        sb.append(").transitionalItem('").append(transitional).append("')");
+        sb.append(".loops(").append(Math.max(1, d.cookingTime())).append(")");
     }
 
     private static String firstNonBlank(List<String> cells, String error) {

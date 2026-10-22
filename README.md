@@ -3,7 +3,7 @@
 在游戏内可视化编辑配方的 Forge 模组：按 **G 键**打开全中文编辑器，
 可以**添加配方**、**修改已有配方**、**删除配方**，并把结果写成 **KubeJS 可读的脚本**。
 
-当前版本 **1.10.0**。不添加任何物品或方块，只做配方编辑。
+当前版本 **1.11.0**。不添加任何物品或方块，只做配方编辑。
 
 ---
 
@@ -13,7 +13,7 @@
 |---|---|
 | 快捷键 | **G** 打开配方编辑器（可在「选项 → 按键控制」改） |
 | 三个独立模式 | **添加配方 / 修改配方 / 删除配方**，各自一个按钮，不合并 |
-| 配方类型（10 种） | **原版 7 种**：工作台合成（3×3）、物品栏合成（2×2）、**熔炉**、**高炉**、**烟熏炉**、**营火**、**锻造台**<br>**农夫乐事 2 种**：**烹饪锅**、**切菜板**<br>**机械动力 1 类 14 台机器**：粉碎轮 / 石磨 / 动力锯 / 工作盆 / 动力冲压机 / 动力搅拌器 / 鼓风机 / 砂纸 / 注液器 / 机械手，见 [§4.7](#47-机械动力处理配方) |
+| 配方类型（11 种） | **原版 7 种**：工作台合成（3×3）、物品栏合成（2×2）、**熔炉**、**高炉**、**烟熏炉**、**营火**、**锻造台**<br>**农夫乐事 2 种**：**烹饪锅**、**切菜板**<br>**机械动力 2 类**：**处理配方**（14 台机器，见 [§4.7](#47-机械动力处理配方)）、**序列组装**（4 步，见 [§4.10](#410-机械动力--序列组装)） |
 | 类型分组 | **原版 / 农夫乐事 / 机械动力分开选**：「分组」按钮在可用分组间切换，「类型」按钮只在当前组内循环，不用一路按过去 |
 | 机械动力副产物 | 副产物栏位与概率框**按机器显隐**——统计过 Create 自带的 1766 个官方配方，只有粉碎(179/192)、研磨(159/222)、洗涤(9/38)、缠魂(1/21) 有多产物，给其余机器摆副产物格纯属误导 |
 | 备注 | 「备注」输入框的内容写成脚本里的 **`//` 行注释**放在配方上方；多行备注每行各加一个 `//` |
@@ -47,7 +47,7 @@
 | Forge | 47.4.26（1.20.1 推荐版） | 同上 |
 | Java (JDK) | **17**（Oracle JDK 17.0.12） | `C:\Program Files\Java\jdk-17` |
 | Gradle | 8.8 | `D:\DSH work\.gradle-home` |
-| 模组版本 | **1.10.0** | `gradle.properties` → `mod_version` |
+| 模组版本 | **1.11.0** | `gradle.properties` → `mod_version` |
 
 > MC 1.20.1 / Forge 47.x 的编译与运行目标都是 **Java 17**，用 JDK 21 会报 class file version 错误。
 
@@ -56,7 +56,7 @@
 ## 3. 常用命令
 
 ```powershell
-.\dev.ps1 build            # 编译，产物 build\libs\simple_recipe_change-1.10.0.jar
+.\dev.ps1 build            # 编译，产物 build\libs\simple_recipe_change-1.11.0.jar
 .\dev.ps1 runClient        # 启动开发版客户端
 .\dev.ps1 runServer        # 启动开发版服务端
 .\dev.ps1 runData          # 数据生成
@@ -256,6 +256,44 @@ event.recipes.create.crushing(
 - 未安装 KubeJS 时会提示「未检测到 kubejs 目录，安装后才会生效」
 - 点第一行的「**重载**」即可让 KubeJS 重新读取，等同 `/reload`。
   该操作需要 **OP 等级 2**（单人游戏直接放行）；没权限时会在聊天栏收到提示（见 [§1](#1-功能一览)）。
+
+### 4.10 机械动力 · 序列组装
+
+类型切到「序列组装」后，界面是：
+
+```
+[输入物品] [过渡物品] [产物]          循环次数：[ 4 ]
+[1 部署]  [2 部署]  [3 压印]  [4 切割]
+  [槽]      [槽]      [槽]      [槽]
+```
+
+- **输入物品** —— 第一步的原料
+- **过渡物品**（半成品）—— 整个流程里被反复加工的那个物品，每一步的输入和输出都是它
+- **4 个步骤按钮** —— 点一下在 部署 / 压印 / 切割 之间循环
+  - 部署要额外材料，放进按钮下面的格子
+  - 压印、切割只用过渡物品本身，对应格子会置灰
+  - 灌装要流体，本模组不处理流体，所以没提供
+- **循环次数** —— 整串步骤重复几次，默认 4
+- **产物** —— 只支持单产物（Create 原版那些「废料」暂不支持）
+
+生成：
+
+```js
+event.recipes.create.sequenced_assembly(
+  ['create:precision_mechanism'],
+  'create:golden_sheet',
+  [
+    event.recipes.create.deploying(
+      'create:incomplete_precision_mechanism',
+      ['create:incomplete_precision_mechanism', 'create:cogwheel']
+    ),
+    event.recipes.create.pressing(
+      'create:incomplete_precision_mechanism',
+      'create:incomplete_precision_mechanism'
+    )
+  ]
+).transitionalItem('create:incomplete_precision_mechanism').loops(5)
+```
 
 ---
 
@@ -530,7 +568,7 @@ mod_id=simple_recipe_change
 mod_name=Simple Recipe Change
 mod_group_id=com.wowuwo233.simple_recipe_change
 mod_authors=wowuwo233
-mod_version=1.10.0
+mod_version=1.11.0
 ```
 
 改动后需同步：主类的 `MODID` 常量、Java 包目录与 `package` 语句、
@@ -557,12 +595,12 @@ mod_version=1.10.0
       `kubejs-forge-2001.6.5-build.26.jar` 逐个确认（方法名、参数顺序、键名），
       结果记在 [§8](#8-第三方配方类型的支持情况)
 - [x] `dev.cmd build` → **BUILD SUCCESSFUL**，`jar` 与 `reobfJar` 都正常执行
-- [x] 产物 `simple_recipe_change-1.10.0.jar`（232.4 KB，**50 个类**）内部结构正确：
-      `mods.toml` 的 `modId=simple_recipe_change` / `version=1.10.0` / `license=GPL-3.0-only`
+- [x] 产物 `simple_recipe_change-1.11.0.jar`（235.4 KB，**50 个类**）内部结构正确：
+      `mods.toml` 的 `modId=simple_recipe_change` / `version=1.11.0` / `license=GPL-3.0-only`
       与 `gradle.properties` 一致；
       资源里**无任何示例物品**（MDK 示例物品已清干净），只有 `pack.mcmeta`、两个 lang 文件、
       `mods.toml` 和 189 KB 的 `pinyin.txt`
-- [x] 已输出到工作区：`D:\DSH work\simple_recipe_change-1.10.0.jar`
+- [x] 已输出到工作区：`D:\DSH work\simple_recipe_change-1.11.0.jar`
 - [x] **1.8.4 修完遗留项后复验**：`compileJava` 与 `build` 均 **BUILD SUCCESSFUL**；
       `WriterCheck`（含新增的「切换类型时格子重排」用例）与 `SearchCheck` 双双 **ALL CHECKS PASSED**；
       jar 内 `description` 的中文正常（`gradle.properties` 里用 `\uXXXX` 转义后写入），
@@ -591,11 +629,11 @@ mod_version=1.10.0
 > 要让配方真正生效需要额外安装 **KubeJS**（把它的 jar 放进 `mods`）。
 >
 > 工作区里还留着旧版 `simple_recipe_change-1.8.3.jar` / `1.8.4.jar` / `1.9.0.jar` / `1.9.1.jar`，可手动删除；
-> **请用 `simple_recipe_change-1.10.0.jar`**。
+> **请用 `simple_recipe_change-1.11.0.jar`**。
 
 ---
 
-## 13. 遗留项处理记录（1.8.4 – 1.10.0）
+## 13. 遗留项处理记录（1.8.4 – 1.11.0）
 
 1.8.1 审计出来的问题在 1.8.4 逐条处理了一遍。下表是结论，细节在后文。
 
@@ -612,6 +650,7 @@ mod_version=1.10.0
 | ⑨ | 产物 NBT 被洗掉（1.9.0） | 保存时读产物槽的 SNBT，写进脚本与索引 |
 | ⑩ | 快捷栏被窗口底边裁掉（1.9.1） | 状态提示挪到标题栏，窗口 388 → 370，背包整体上移 |
 | ⑪ | 缺营火配方（1.10.0） | 新增 `CAMPFIRE` 类型，默认 600 tick |
+| ⑫ | 缺序列组装（1.11.0） | 新增类型：输入 / 过渡 / 4 步 / 循环次数，生成 `sequenced_assembly` |
 
 ### ① 重载权限：保留限制，而不是放开
 
@@ -729,6 +768,17 @@ KubeJS 2001.6.5 里也没有任何 anvil / brewing 相关类。铁砧逻辑硬�
 两者都必须在 Java 模组里实现，**做不到「生成 KubeJS 脚本、卸载模组后仍生效」**——
 这是平台限制，不是实现选择。
 
+### ⑫ 序列组装（1.11.0）
+
+参考 ViScriptRecipe 的序列组装界面做了一版：它用 LDLib2 画布 + 动态步骤列表，
+我们这边是**固定 4 步**（覆盖 Create 自带配方足够），步骤类型用按钮循环。
+
+实现上**没有新增数据字段**：`cells` 前两位是输入 / 过渡物品，2..5 是四步的材料；
+步骤类型借用 `heat`（本类型不用热度），循环次数借用 `cookingTime`。
+索引、网络包因此完全不用改结构。
+
+**只支持部署 / 压印 / 切割**：灌装要流体，本模组不处理流体；「废料」多产物也没做。
+
 ---
 
 ## 14. 仍未覆盖的部分
@@ -740,4 +790,5 @@ KubeJS 2001.6.5 里也没有任何 anvil / brewing 相关类。铁砧逻辑硬�
   没有 NBT 来源，生成的还是纯 ID。要支持得先把这些格子改成真实槽位。
 - **输入材料仍不带 NBT**：输入槽是「展示槽 + 字符串」，只记物品 ID 或 `#标签`。
   需要「必须用某个特定 NBT 物品当材料」时，得另外设计 `Item.of(...)` 的输入写法。
-- 旧版本 jar 仍留在 `D:\DSH work\`（`1.8.3`、`1.8.4`、`1.9.0`、`1.9.1`），**请用 `simple_recipe_change-1.10.0.jar`**。
+- **序列组装只做了子集**：固定 4 步、只有部署 / 压印 / 切割（灌装要流体）、单产物（无废料）。
+- 旧版本 jar 仍留在 `D:\DSH work\`（`1.8.3`、`1.8.4`、`1.9.0`、`1.9.1`、`1.10.0`），**请用 `simple_recipe_change-1.11.0.jar`**。
