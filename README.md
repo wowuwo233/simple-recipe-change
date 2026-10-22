@@ -3,7 +3,7 @@
 在游戏内可视化编辑配方的 Forge 模组：按 **G 键**打开全中文编辑器，
 可以**添加配方**、**修改已有配方**、**删除配方**，并把结果写成 **KubeJS 可读的脚本**。
 
-当前版本 **1.13.0**。不添加任何物品或方块，只做配方编辑。
+当前版本 **1.13.1**。不添加任何物品或方块，只做配方编辑。
 
 ---
 
@@ -48,7 +48,7 @@
 | Forge | 47.4.26（1.20.1 推荐版） | 同上 |
 | Java (JDK) | **17**（Oracle JDK 17.0.12） | `C:\Program Files\Java\jdk-17` |
 | Gradle | 8.8 | `D:\DSH work\.gradle-home` |
-| 模组版本 | **1.13.0** | `gradle.properties` → `mod_version` |
+| 模组版本 | **1.13.1** | `gradle.properties` → `mod_version` |
 
 > MC 1.20.1 / Forge 47.x 的编译与运行目标都是 **Java 17**，用 JDK 21 会报 class file version 错误。
 
@@ -57,7 +57,7 @@
 ## 3. 常用命令
 
 ```powershell
-.\dev.ps1 build            # 编译，产物 build\libs\simple_recipe_change-1.13.0.jar
+.\dev.ps1 build            # 编译，产物 build\libs\simple_recipe_change-1.13.1.jar
 .\dev.ps1 runClient        # 启动开发版客户端
 .\dev.ps1 runServer        # 启动开发版服务端
 .\dev.ps1 runData          # 数据生成
@@ -346,10 +346,15 @@ event.recipes.create.sequenced_assembly(
 | `minecraft:crafting` / `smelting` / `blasting` / `smoking` / `campfire_cooking` / `smithing` | ✅ |
 | `farmersdelight:cooking` / `cutting` | ✅（工具、副产物、概率都读出来） |
 | `create:*`（14 台处理机器） | ✅（材料、副产物、时间、热度） |
+| `create:sequenced_assembly` | ✅（输入、过渡物品、各步机器与材料、循环次数、成功率与废料） |
 | 其它模组的自定义类型 | ❌ 会提示「暂不支持」，因为 KubeJS 也生成不了 |
 
 数据提取走反射（`getTool` / `getResults` / `getRollableResults` 这类公开方法），
 模组改字段名只会导致少读到一项，不会崩。
+
+> 序列组装的限制：编辑器最多 6 步、只认部署/压印/切割，所以超过 6 步或含**灌装**步骤的
+> 配方会跳过那些步骤，并在「原版配方：」那行摘要里写明跳过了几个；废料多于 1 个时只保留
+> 权重最大的一个（摘要里也会写）。成功率由主产物在结果池里的权重换算。
 
 - **来源**可在浮层右下角切换：`全部物品` / `我的背包`
 - 悬停任意格子会显示**物品名与物品 ID**。
@@ -609,7 +614,7 @@ mod_id=simple_recipe_change
 mod_name=Simple Recipe Change
 mod_group_id=com.wowuwo233.simple_recipe_change
 mod_authors=wowuwo233
-mod_version=1.13.0
+mod_version=1.13.1
 ```
 
 改动后需同步：主类的 `MODID` 常量、Java 包目录与 `package` 语句、
@@ -636,12 +641,12 @@ mod_version=1.13.0
       `kubejs-forge-2001.6.5-build.26.jar` 逐个确认（方法名、参数顺序、键名），
       结果记在 [§8](#8-第三方配方类型的支持情况)
 - [x] `dev.cmd build` → **BUILD SUCCESSFUL**，`jar` 与 `reobfJar` 都正常执行
-- [x] 产物 `simple_recipe_change-1.13.0.jar`（244.6 KB，**50 个类**）内部结构正确：
-      `mods.toml` 的 `modId=simple_recipe_change` / `version=1.13.0` / `license=GPL-3.0-only`
+- [x] 产物 `simple_recipe_change-1.13.1.jar`（246.9 KB，**50 个类**）内部结构正确：
+      `mods.toml` 的 `modId=simple_recipe_change` / `version=1.13.1` / `license=GPL-3.0-only`
       与 `gradle.properties` 一致；
       资源里**无任何示例物品**（MDK 示例物品已清干净），只有 `pack.mcmeta`、两个 lang 文件、
       `mods.toml` 和 189 KB 的 `pinyin.txt`
-- [x] 已输出到工作区：`D:\DSH work\simple_recipe_change-1.13.0.jar`
+- [x] 已输出到工作区：`D:\DSH work\simple_recipe_change-1.13.1.jar`
 - [x] **1.8.4 修完遗留项后复验**：`compileJava` 与 `build` 均 **BUILD SUCCESSFUL**；
       `WriterCheck`（含新增的「切换类型时格子重排」用例）与 `SearchCheck` 双双 **ALL CHECKS PASSED**；
       jar 内 `description` 的中文正常（`gradle.properties` 里用 `\uXXXX` 转义后写入），
@@ -670,11 +675,11 @@ mod_version=1.13.0
 > 要让配方真正生效需要额外安装 **KubeJS**（把它的 jar 放进 `mods`）。
 >
 > 工作区里还留着旧版 `simple_recipe_change-1.8.3.jar` / `1.8.4.jar` / `1.9.0.jar` / `1.9.1.jar`，可手动删除；
-> **请用 `simple_recipe_change-1.13.0.jar`**。
+> **请用 `simple_recipe_change-1.13.1.jar`**。
 
 ---
 
-## 13. 遗留项处理记录（1.8.4 – 1.13.0）
+## 13. 遗留项处理记录（1.8.4 – 1.13.1）
 
 1.8.1 审计出来的问题在 1.8.4 逐条处理了一遍。下表是结论，细节在后文。
 
@@ -876,4 +881,4 @@ KubeJS 2001.6.5 里也没有任何 anvil / brewing 相关类。铁砧逻辑硬�
 - **输入材料仍不带 NBT**：输入槽是「展示槽 + 字符串」，只记物品 ID 或 `#标签`。
   需要「必须用某个特定 NBT 物品当材料」时，得另外设计 `Item.of(...)` 的输入写法。
 - **序列组装只做了子集**：固定 4 步、只有部署 / 压印 / 切割（灌装要流体）、单产物（无废料）。
-- 旧版本 jar 仍留在 `D:\DSH work\`（`1.8.3`、`1.8.4`、`1.9.0`、`1.9.1`、`1.10.0`、`1.11.0`、`1.11.1`、`1.12.0`、`1.12.1`、`1.12.2`），**请用 `simple_recipe_change-1.13.0.jar`**。
+- 旧版本 jar 仍留在 `D:\DSH work\`（`1.8.3`、`1.8.4`、`1.9.0`、`1.9.1`、`1.10.0`、`1.11.0`、`1.11.1`、`1.12.0`、`1.12.1`、`1.12.2`、`1.13.0`），**请用 `simple_recipe_change-1.13.1.jar`**。

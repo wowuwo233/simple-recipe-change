@@ -20,6 +20,7 @@ import net.minecraft.world.item.crafting.SmithingTransformRecipe;
 import net.minecraft.world.level.Level;
 import net.minecraftforge.registries.ForgeRegistries;
 
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -365,12 +366,14 @@ public final class VanillaRecipeLookup {
         }
         Recipe<?> recipe = opt.get();
         RecipeType type = typeOf(recipe);
-        if (type == null || type.isSequenced()) {
-            // 序列组装是一串嵌套子配方，暂时不做反查
+        if (type == null) {
             return null;
         }
         RegistryAccess access = level.registryAccess();
         try {
+            if (type == RecipeType.CREATE_SEQUENCED) {
+                return fromSequenced(recipe, access);
+            }
             if (type == RecipeType.FARMERS_CUTTING) {
                 return fromCutting(recipe, access);
             }
@@ -422,8 +425,11 @@ public final class VanillaRecipeLookup {
                 default -> null;
             };
         }
-        if ("create".equals(ns) && CreateMachine.byId(path) != null) {
-            return RecipeType.CREATE_PROCESSING;
+        if ("create".equals(ns)) {
+            if ("sequenced_assembly".equals(path)) {
+                return RecipeType.CREATE_SEQUENCED;
+            }
+            return CreateMachine.byId(path) != null ? RecipeType.CREATE_PROCESSING : null;
         }
         return null;
     }
@@ -568,5 +574,149 @@ public final class VanillaRecipeLookup {
         } catch (Exception e) {
             return null;
         }
+    }
+
+    /** 反射读公有字段（Create 的 {@code resultPool} 是 public field，没有 getter） */
+    private static Object field(Object target, String name) {
+        if (target == null) {
+            return null;
+        }
+        try {
+            Field f = target.getClass().getField(name);
+            f.setAccessible(true);
+            return f.get(target);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private static String typePath(Object recipe) {
+        if (!(recipe instanceof Recipe<?> r)) {
+            return null;
+        }
+        ResourceLocation key = BuiltInRegistries.RECIPE_TYPE.getKey(r.getType());
+        return key == null ? null : key.getPath();
+    }
+
+    /**
+     * 机械动力 · 序列组装。
+     *
+     * <p>编辑器那边的模型是：{@code cells[0]} 输入、{@code cells[1]} 过渡物品、
+     * {@code cells[2..7]} 每步额外材料，{@code heat} 存步骤类型（逗号分隔，项数即步骤数），
+     * {@code cookingTime} 存循环次数，{@code xp} 存成功率。
+     *
+     * <p>Create 的配方类在模组里，这里全部走反射：{@code getIngredient / getTransitionalItem /
+     * getLoops / getSequence}，结果池读公有字段 {@code resultPool}。
+     */
+    private static Found fromSequenced(Recipe<?> recipe, RegistryAccess access) {
+        List<String> cells = blankCells();
+        Set<String> distinct = new LinkedHashSet<>();
+
+        String input = call(recipe, "getIngredient") instanceof Ingredient ing
+                ? describe(ing) : null;
+        cells.set(0, input);
+        if (input != null) {
+            distinct.add(input);
+        }
+        String transitional = call(recipe, "getTransitionalItem") instanceof ItemStack stack
+                ? idOf(stack) : null;
+        cells.set(1, transitional);
+        if (transitional != null) {
+            distinct.add(transitional);
+        }
+
+        int loops = call(recipe, "getLoops") instanceof Integer i ? i : 4;
+
+        List<String> kinds = new ArrayList<>();
+        int skipped = 0;
+        if (call(recipe, "getSequence") instanceof List<?> sequence) {
+            for (Object step : sequence) {
+                Object inner = call(step, "getRecipe");
+                String path = typePath(inner);
+                if (kinds.size() >= 6) {
+                    skipped++;
+                    continue;
+                }
+                switch (path == null ? "" : path) {
+                    case "deploying" -> {
+                        kinds.add("deploying");
+                        String extra = null;
+                        if (inner instanceof Recipe<?> stepRecipe) {
+                            List<Ingredient> ingredients = stepRecipe.getIngredients();
+                            if (ingredients.size() > 1) {
+                                extra = describe(ingredients.get(1));
+                            }
+                        }
+                        cells.set(2 + kinds.size() - 1, extra);
+                        if (extra != null) {
+                            distinct.add(extra);
+                        }
+                    }
+                    case "pressing" -> kinds.add("pressing");
+                    case "cutting" -> kinds.add("cutting");
+                    // 灌装要流体，本模组不处理流体
+                    default -> skipped++;
+                }
+            }
+        }
+        if (kinds.isEmpty()) {
+            return null;
+        }
+
+        // 结果池：第一项是主产物，其余是废料。本模组只支持「主产物 + 1 个失败产物」，
+        // 废料多于一个时取权重最大的那个，并在摘要里说明。
+        ItemStack main = recipe.getResultItem(access);
+        List<RecipeDraft.ExtraOutput> extras = new ArrayList<>();
+        double success = 100D;
+        int scrapCount = 0;
+        if (field(recipe, "resultPool") instanceof List<?> pool && !pool.isEmpty()) {
+            Object first = pool.get(0);
+            if (call(first, "getStack") instanceof ItemStack s && !s.isEmpty()) {
+                main = s;
+            }
+            if (pool.size() > 1) {
+                double firstWeight = call(first, "getChance") instanceof Float f ? f : 1D;
+                double total = firstWeight;
+                Object best = null;
+                double bestWeight = -1D;
+                for (int i = 1; i < pool.size(); i++) {
+                    double w = call(pool.get(i), "getChance") instanceof Float f ? f : 1D;
+                    total += w;
+                    if (w > bestWeight) {
+                        bestWeight = w;
+                        best = pool.get(i);
+                    }
+                }
+                scrapCount = pool.size() - 1;
+                if (total > 0D) {
+                    success = Math.max(1D, Math.min(99D,
+                            Math.round(firstWeight / total * 100D)));
+                }
+                if (best != null && call(best, "getStack") instanceof ItemStack scrap
+                        && !scrap.isEmpty()) {
+                    extras.add(new RecipeDraft.ExtraOutput(idOf(scrap), scrap.getCount(), 1D));
+                }
+            }
+        }
+
+        Found found = build(recipe.getId(), RecipeType.CREATE_SEQUENCED, false, cells, distinct,
+                main, success, loops, extras, CreateMachine.CRUSHING, String.join(",", kinds));
+
+        StringBuilder summary = new StringBuilder(found.summary())
+                .append(" · ").append(kinds.size()).append(" 步 · 循环 ").append(loops);
+        if (scrapCount > 1) {
+            summary.append(" · 原配方有 ").append(scrapCount)
+                    .append(" 个废料，这里只保留权重最大的 1 个");
+        }
+        if (skipped > 0) {
+            summary.append(" · 跳过 ").append(skipped).append(" 个灌装/超出 6 步的步骤");
+        }
+        return withSummary(found, summary.toString());
+    }
+
+    private static Found withSummary(Found f, String summary) {
+        return new Found(f.recipeId(), f.outputItem(), f.outputName(), f.outputCount(),
+                f.shapeless(), f.suggestedType(), f.cells(), f.ingredientIds(), summary,
+                f.xp(), f.cookingTime(), f.extras(), f.machine(), f.heat());
     }
 }
