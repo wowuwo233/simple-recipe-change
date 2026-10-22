@@ -153,7 +153,13 @@ public final class KubeJsWriter {
                     appendFarmersCutting(sb, d, output);
                 }
             }
-            case THERMAL -> appendThermal(sb, d, output);
+            case THERMAL -> {
+                if (d.type().isThermalFuel()) {
+                    appendThermalFuel(sb, d);
+                } else {
+                    appendThermal(sb, d, output);
+                }
+            }
             case CREATE -> {
                 if (d.type().isSequenced()) {
                     appendSequenced(sb, d, output);
@@ -366,6 +372,32 @@ public final class KubeJsWriter {
         if (machine.hasKeepHeldItem() && d.keepHeldItem()) {
             sb.append(".keepHeldItem(true)");
         }
+    }
+
+    /**
+     * 热力膨胀 · 燃料：{@code event.recipes.thermal.<fuel>(ingredients, energy)}，没有产物。
+     */
+    private static void appendThermalFuel(StringBuilder sb, RecipeDraft d) {
+        List<String> ingredients = new ArrayList<>();
+        for (String cell : d.inputCells()) {
+            if (cell != null && !cell.isBlank()) {
+                ingredients.add(renderIngredient(cell));
+            }
+        }
+        if (ingredients.isEmpty()) {
+            throw new IllegalArgumentException("燃料配方至少要放一种材料");
+        }
+        sb.append(d.type().eventPath()).append("(\n");
+        if (ingredients.size() == 1) {
+            sb.append("  ").append(ingredients.get(0)).append(",\n");
+        } else {
+            sb.append("  [\n");
+            for (String ing : ingredients) {
+                sb.append("    ").append(ing).append(",\n");
+            }
+            sb.append("  ],\n");
+        }
+        sb.append("  ").append(Math.max(0, d.cookingTime())).append(")");
     }
 
     /**

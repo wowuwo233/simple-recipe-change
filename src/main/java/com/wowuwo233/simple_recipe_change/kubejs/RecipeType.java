@@ -72,7 +72,16 @@ public enum RecipeType {
     THERMAL_CRYSTALLIZER("thermal_crystallizer", "热力膨胀 · 结晶机", "结晶", Category.THERMAL, 9, 1),
     THERMAL_INSOLATOR("thermal_insolator", "热力膨胀 · 光照栽培机", "栽培", Category.THERMAL, 9, 1),
     THERMAL_PULVERIZER_RECYCLE("thermal_pulverizer_recycle", "热力膨胀 · 粉碎回收", "粉碎回收", Category.THERMAL, 9, 1),
-    THERMAL_SMELTER_RECYCLE("thermal_smelter_recycle", "热力膨胀 · 熔炼回收", "熔炼回收", Category.THERMAL, 9, 1);
+    THERMAL_SMELTER_RECYCLE("thermal_smelter_recycle", "热力膨胀 · 熔炼回收", "熔炼回收", Category.THERMAL, 9, 1),
+
+    // 燃料：只吃材料 + 能量，没有产物
+    THERMAL_STIRLING_FUEL("thermal_stirling_fuel", "热力膨胀 · 斯特林燃料", "斯特林", Category.THERMAL, 9, 1),
+    THERMAL_NUMISMATIC_FUEL("thermal_numismatic_fuel", "热力膨胀 · 数币燃料", "数币", Category.THERMAL, 9, 1),
+    THERMAL_LAPIDARY_FUEL("thermal_lapidary_fuel", "热力膨胀 · 宝石燃料", "宝石", Category.THERMAL, 9, 1),
+    THERMAL_DISENCHANTMENT_FUEL("thermal_disenchantment_fuel", "热力膨胀 · 祛魔燃料", "祛魔", Category.THERMAL, 9, 1),
+    THERMAL_GOURMAND_FUEL("thermal_gourmand_fuel", "热力膨胀 · 美食燃料", "美食", Category.THERMAL, 9, 1),
+    THERMAL_COMPRESSION_FUEL("thermal_compression_fuel", "热力膨胀 · 压缩燃料", "压缩", Category.THERMAL, 9, 1),
+    THERMAL_MAGMATIC_FUEL("thermal_magmatic_fuel", "热力膨胀 · 岩浆燃料", "岩浆", Category.THERMAL, 9, 1);
 
     /** 配方大类，决定界面布局与生成方式 */
     public enum Category {
@@ -230,6 +239,11 @@ public enum RecipeType {
     /** 是否是机械动力类型（由 kubejs-create 提供 schema） */
     public boolean isCreate() {
         return category == Category.CREATE;
+    }
+
+    /** 热力膨胀的燃料类（只要材料 + 能量，没有产物） */
+    public boolean isThermalFuel() {
+        return isThermal() && id.endsWith("_fuel");
     }
 
     /** 是否是热力膨胀类型（由 kubejs-thermal 提供 schema） */

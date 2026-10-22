@@ -1164,7 +1164,7 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
                     COLOR_SLOT_LABEL, false);
         } else if (this.recipeType.isFarmers()) {
             drawFarmersLabels(graphics);
-        } else if (this.recipeType.isCreate()) {
+        } else if (this.recipeType.isCreate() || this.recipeType.isThermal()) {
             drawCreateLabels(graphics);
         } else {
             // 用 slot.y 而不是固定的 ROW_Y：农夫乐事之外的类型也可能把行挪走
@@ -1211,7 +1211,7 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
     private void drawCreateLabels(GuiGraphics graphics) {
         graphics.drawString(this.font, "材料", RecipeEditorMenu.CREATE_GRID_X,
                 RecipeEditorMenu.CREATE_LABEL_Y, COLOR_SLOT_LABEL, false);
-        graphics.drawString(this.font, "额外产物", 200, RecipeEditorMenu.CREATE_LABEL_Y,
+        graphics.drawString(this.font, "副产物", 200, RecipeEditorMenu.CREATE_LABEL_Y,
                 COLOR_TEXT_DIM, false);
     }
 
