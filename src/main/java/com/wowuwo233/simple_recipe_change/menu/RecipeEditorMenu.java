@@ -299,15 +299,17 @@ public class RecipeEditorMenu extends AbstractContainerMenu {
             }
             case CREATE -> {
                 if (recipeType.isSequenced()) {
-                    // 输入 → 过渡物品 → 产物 一行，下面 4 个步骤（槽位由客户端画按钮）
+                    // 输入 → 过渡物品 一行，下面 4 个步骤（槽位由客户端画按钮）。
+                    // 产物槽必须排在<b>所有输入槽之后</b>：outputMenuIndex() 按「输入槽数量」
+                    // 推算它的下标，插在中间会让产物标签画到步骤槽上去。
                     place(new DisplaySlot(this.placeholder, 0, SEQ_INPUT_X, SEQ_ROW_Y), firstTime);
                     place(new DisplaySlot(this.placeholder, 1, SEQ_TRANSITIONAL_X, SEQ_ROW_Y), firstTime);
-                    place(new EditorSlot(this.output, 0, SEQ_OUTPUT_X, SEQ_ROW_Y), firstTime);
                     for (int i = 0; i < SEQ_STEP_COUNT; i++) {
                         place(new DisplaySlot(this.placeholder, 2 + i,
                                 SEQ_BUTTON_X0 + i * SEQ_BUTTON_STEP + SEQ_SLOT_INSET,
                                 SEQ_SLOT_Y), firstTime);
                     }
+                    place(new EditorSlot(this.output, 0, SEQ_OUTPUT_X, SEQ_ROW_Y), firstTime);
                 } else {
                     // 处理配方：材料 3×3（9 格），网格下方是标注行，再下面是额外产物行
                     for (int i = 0; i < CREATE_MATERIAL_SLOTS; i++) {
@@ -477,6 +479,10 @@ public class RecipeEditorMenu extends AbstractContainerMenu {
 
     /** 副产物要不要带概率框 */
     public boolean hasByproductChance() {
+        if (recipeType.isSequenced()) {
+            // 序列组装只做单产物，不摆概率框
+            return false;
+        }
         return recipeType.isCreate() ? createMachine.hasByproducts() : recipeType.hasChanceResults();
     }
 

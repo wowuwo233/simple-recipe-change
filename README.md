@@ -3,7 +3,7 @@
 在游戏内可视化编辑配方的 Forge 模组：按 **G 键**打开全中文编辑器，
 可以**添加配方**、**修改已有配方**、**删除配方**，并把结果写成 **KubeJS 可读的脚本**。
 
-当前版本 **1.11.0**。不添加任何物品或方块，只做配方编辑。
+当前版本 **1.11.1**。不添加任何物品或方块，只做配方编辑。
 
 ---
 
@@ -47,7 +47,7 @@
 | Forge | 47.4.26（1.20.1 推荐版） | 同上 |
 | Java (JDK) | **17**（Oracle JDK 17.0.12） | `C:\Program Files\Java\jdk-17` |
 | Gradle | 8.8 | `D:\DSH work\.gradle-home` |
-| 模组版本 | **1.11.0** | `gradle.properties` → `mod_version` |
+| 模组版本 | **1.11.1** | `gradle.properties` → `mod_version` |
 
 > MC 1.20.1 / Forge 47.x 的编译与运行目标都是 **Java 17**，用 JDK 21 会报 class file version 错误。
 
@@ -56,7 +56,7 @@
 ## 3. 常用命令
 
 ```powershell
-.\dev.ps1 build            # 编译，产物 build\libs\simple_recipe_change-1.11.0.jar
+.\dev.ps1 build            # 编译，产物 build\libs\simple_recipe_change-1.11.1.jar
 .\dev.ps1 runClient        # 启动开发版客户端
 .\dev.ps1 runServer        # 启动开发版服务端
 .\dev.ps1 runData          # 数据生成
@@ -568,7 +568,7 @@ mod_id=simple_recipe_change
 mod_name=Simple Recipe Change
 mod_group_id=com.wowuwo233.simple_recipe_change
 mod_authors=wowuwo233
-mod_version=1.11.0
+mod_version=1.11.1
 ```
 
 改动后需同步：主类的 `MODID` 常量、Java 包目录与 `package` 语句、
@@ -595,12 +595,12 @@ mod_version=1.11.0
       `kubejs-forge-2001.6.5-build.26.jar` 逐个确认（方法名、参数顺序、键名），
       结果记在 [§8](#8-第三方配方类型的支持情况)
 - [x] `dev.cmd build` → **BUILD SUCCESSFUL**，`jar` 与 `reobfJar` 都正常执行
-- [x] 产物 `simple_recipe_change-1.11.0.jar`（235.4 KB，**50 个类**）内部结构正确：
-      `mods.toml` 的 `modId=simple_recipe_change` / `version=1.11.0` / `license=GPL-3.0-only`
+- [x] 产物 `simple_recipe_change-1.11.1.jar`（235.4 KB，**50 个类**）内部结构正确：
+      `mods.toml` 的 `modId=simple_recipe_change` / `version=1.11.1` / `license=GPL-3.0-only`
       与 `gradle.properties` 一致；
       资源里**无任何示例物品**（MDK 示例物品已清干净），只有 `pack.mcmeta`、两个 lang 文件、
       `mods.toml` 和 189 KB 的 `pinyin.txt`
-- [x] 已输出到工作区：`D:\DSH work\simple_recipe_change-1.11.0.jar`
+- [x] 已输出到工作区：`D:\DSH work\simple_recipe_change-1.11.1.jar`
 - [x] **1.8.4 修完遗留项后复验**：`compileJava` 与 `build` 均 **BUILD SUCCESSFUL**；
       `WriterCheck`（含新增的「切换类型时格子重排」用例）与 `SearchCheck` 双双 **ALL CHECKS PASSED**；
       jar 内 `description` 的中文正常（`gradle.properties` 里用 `\uXXXX` 转义后写入），
@@ -629,11 +629,11 @@ mod_version=1.11.0
 > 要让配方真正生效需要额外安装 **KubeJS**（把它的 jar 放进 `mods`）。
 >
 > 工作区里还留着旧版 `simple_recipe_change-1.8.3.jar` / `1.8.4.jar` / `1.9.0.jar` / `1.9.1.jar`，可手动删除；
-> **请用 `simple_recipe_change-1.11.0.jar`**。
+> **请用 `simple_recipe_change-1.11.1.jar`**。
 
 ---
 
-## 13. 遗留项处理记录（1.8.4 – 1.11.0）
+## 13. 遗留项处理记录（1.8.4 – 1.11.1）
 
 1.8.1 审计出来的问题在 1.8.4 逐条处理了一遍。下表是结论，细节在后文。
 
@@ -779,6 +779,12 @@ KubeJS 2001.6.5 里也没有任何 anvil / brewing 相关类。铁砧逻辑硬�
 
 **只支持部署 / 压印 / 切割**：灌装要流体，本模组不处理流体；「废料」多产物也没做。
 
+> **1.11.1 修了两个布局 bug**（1.11.0 的截图里能直接看到）：
+> ① 产物槽原来排在输入槽中间，而 `render()` 画输入格虚影时按「前 N 个槽都是输入槽」遍历，
+> 结果把输入物品的虚影叠到了产物格上——看起来像「放输入物品，产物也自动填充了」，其实数据没变。
+> 现在产物槽排在所有输入槽之后。
+> ② 切菜板的 4 个概率输入框没有对序列组装排除，显示成了 4 个值为 1 的黑框。
+
 ---
 
 ## 14. 仍未覆盖的部分
@@ -791,4 +797,4 @@ KubeJS 2001.6.5 里也没有任何 anvil / brewing 相关类。铁砧逻辑硬�
 - **输入材料仍不带 NBT**：输入槽是「展示槽 + 字符串」，只记物品 ID 或 `#标签`。
   需要「必须用某个特定 NBT 物品当材料」时，得另外设计 `Item.of(...)` 的输入写法。
 - **序列组装只做了子集**：固定 4 步、只有部署 / 压印 / 切割（灌装要流体）、单产物（无废料）。
-- 旧版本 jar 仍留在 `D:\DSH work\`（`1.8.3`、`1.8.4`、`1.9.0`、`1.9.1`、`1.10.0`），**请用 `simple_recipe_change-1.11.0.jar`**。
+- 旧版本 jar 仍留在 `D:\DSH work\`（`1.8.3`、`1.8.4`、`1.9.0`、`1.9.1`、`1.10.0`），**请用 `simple_recipe_change-1.11.1.jar`**。

@@ -1077,13 +1077,11 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
         return this.recipeType.hasCookingSettings() && this.recipeType.hasTimeField();
     }
 
-    /** 序列组装的槽位标注：第一行三个 + 四个步骤 */
+    /** 序列组装的槽位标注：第一行两个输入 + 四个步骤（「产物」由通用代码统一画） */
     private void drawSequencedLabels(GuiGraphics graphics) {
         graphics.drawString(this.font, "输入物品", RecipeEditorMenu.SEQ_INPUT_X,
                 RecipeEditorMenu.SEQ_ROW_Y + 22, COLOR_SLOT_LABEL, false);
         graphics.drawString(this.font, "过渡物品", RecipeEditorMenu.SEQ_TRANSITIONAL_X,
-                RecipeEditorMenu.SEQ_ROW_Y + 22, COLOR_SLOT_LABEL, false);
-        graphics.drawString(this.font, "产物", RecipeEditorMenu.SEQ_OUTPUT_X,
                 RecipeEditorMenu.SEQ_ROW_Y + 22, COLOR_SLOT_LABEL, false);
         for (int i = 0; i < RecipeEditorMenu.SEQ_STEP_COUNT; i++) {
             int x = RecipeEditorMenu.SEQ_BUTTON_X0 + i * RecipeEditorMenu.SEQ_BUTTON_STEP;
