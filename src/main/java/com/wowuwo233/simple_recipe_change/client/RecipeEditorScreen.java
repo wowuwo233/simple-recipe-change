@@ -255,7 +255,8 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
     /** 把额外产物格 + 概率框收成列表；概率留空或写坏了都按 1 处理 */
     private List<RecipeDraft.ExtraOutput> collectExtraOutputs() {
         List<RecipeDraft.ExtraOutput> out = new ArrayList<>();
-        if (!this.recipeType.hasMultipleOutputs()) {
+        // 切菜板是多产物，序列组装的「失败产物」也算一个额外产物（但只有一格、没有概率框）
+        if (!this.recipeType.hasMultipleOutputs() && !this.recipeType.isSequenced()) {
             return out;
         }
         for (int i = 0; i < this.extraItems.size(); i++) {
