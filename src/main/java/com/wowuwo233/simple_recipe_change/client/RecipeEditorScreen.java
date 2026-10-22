@@ -1000,6 +1000,16 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
         return this.searchField != null && !this.searchField.getValue().trim().isEmpty();
     }
 
+    /**
+     * 输入的是不是一条配方 ID（{@code namespace:path}）。
+     *
+     * <p>只要长得像就往服务端问一次，由服务端判断存不存在、类型支不支持——
+     * 客户端拿不到完整的配方表（专用服务器上更是如此）。
+     */
+    private static boolean looksLikeRecipeId(String text) {
+        return text != null && text.matches("[a-z0-9_.-]+:[a-z0-9_./-]+");
+    }
+
     private List<ItemSearch.Entry> candidates() {
         return this.inventorySource ? ItemSearchCache.inventoryItems() : ItemSearchCache.allItems();
     }
@@ -1193,8 +1203,10 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
                     COLOR_SLOT_LABEL, false);
             graphics.drawString(this.font, "工具", RecipeEditorMenu.CUT_TOOL_X, ly,
                     COLOR_SLOT_LABEL, false);
-            // 额外产物在下面一行，概率填在每格右边——提示跟在同行，不另起一行
-            graphics.drawString(this.font, "额外产物 ↓ 右侧填概率", 170, ly, COLOR_TEXT_DIM, false);
+            // 副产物单独占下面一行，标注写在那一行下面，别跟材料/工具的标签挤在一起
+            graphics.drawString(this.font, "副产物（右侧填概率，可留空）",
+                    RecipeEditorMenu.EXTRA_SLOT_X0, RecipeEditorMenu.EXTRA_ROW_Y + 21,
+                    COLOR_TEXT_DIM, false);
         }
     }
 
@@ -1305,10 +1317,16 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
             }
         }
 
-        // 顶部：结果数与目标格
-        graphics.drawString(this.font, "搜索结果 " + this.searchResults.size() + " 个 · 点击放入："
-                        + (searchGoesToOutput() ? "产物格" : "输入槽"),
-                left + 8, top + 8, COLOR_TEXT, false);
+        // 顶部：结果数与目标格；输入的是配方 ID 时改成「回车跳转」
+        String query = this.searchField.getValue().trim();
+        if (looksLikeRecipeId(query)) {
+            graphics.drawString(this.font, "配方 ID：" + query + "  ·  按回车跳转",
+                    left + 8, top + 8, COLOR_OK, false);
+        } else {
+            graphics.drawString(this.font, "搜索结果 " + this.searchResults.size() + " 个 · 点击放入："
+                            + (searchGoesToOutput() ? "产物格" : "输入槽"),
+                    left + 8, top + 8, COLOR_TEXT, false);
+        }
 
         // 中部：悬停物品 / 搜索语法提示
         if (this.hoveredResult != null) {
@@ -1388,6 +1406,18 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
                 this.searchField.setValue("");
                 this.searchResults = List.of();
                 return true;
+            }
+            // 搜索框里输的是配方 ID：回车直接跳过去
+            if (keyCode == org.lwjgl.glfw.GLFW.GLFW_KEY_ENTER && searching()) {
+                String query = this.searchField.getValue().trim();
+                if (looksLikeRecipeId(query)) {
+                    ModNetwork.requestLoadRecipeById(query);
+                    this.searchField.setValue("");
+                    this.searchResults = List.of();
+                    this.searchPage = 0;
+                    setStatus(true, "正在查找配方 " + query + " …");
+                    return true;
+                }
             }
             InputConstants.Key key = InputConstants.getKey(keyCode, scanCode);
             if (this.minecraft.options.keyInventory.isActiveAndMatches(key)) {

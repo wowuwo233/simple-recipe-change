@@ -1,5 +1,6 @@
 package com.wowuwo233.simple_recipe_change.server;
 
+import com.wowuwo233.simple_recipe_change.kubejs.CreateMachine;
 import com.wowuwo233.simple_recipe_change.kubejs.RecipeDraft;
 import com.wowuwo233.simple_recipe_change.kubejs.RecipeType;
 import net.minecraft.core.Holder;
@@ -19,6 +20,7 @@ import net.minecraft.world.item.crafting.SmithingTransformRecipe;
 import net.minecraft.world.level.Level;
 import net.minecraftforge.registries.ForgeRegistries;
 
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -54,8 +56,23 @@ public final class VanillaRecipeLookup {
             List<String> ingredientIds,
             String summary,
             double xp,
-            int cookingTime
+            int cookingTime,
+            /** 副产物（切菜板 / Create 副产物），没有就是空表 */
+            List<RecipeDraft.ExtraOutput> extras,
+            /** Create 处理配方对应的机器 */
+            CreateMachine machine,
+            /** Create 处理配方的热度要求（heated / superheated / 空） */
+            String heat
     ) {
+        public Found {
+            extras = extras == null ? List.of() : List.copyOf(extras);
+            if (machine == null) {
+                machine = CreateMachine.CRUSHING;
+            }
+            if (heat == null) {
+                heat = "";
+            }
+        }
     }
 
     private VanillaRecipeLookup() {
@@ -212,6 +229,15 @@ public final class VanillaRecipeLookup {
     private static Found build(ResourceLocation recipeId, RecipeType type, boolean shapeless,
                                List<String> cells, Set<String> distinct, ItemStack result,
                                double xp, int cookingTime) {
+        return build(recipeId, type, shapeless, cells, distinct, result, xp, cookingTime,
+                List.of(), CreateMachine.CRUSHING, "");
+    }
+
+    private static Found build(ResourceLocation recipeId, RecipeType type, boolean shapeless,
+                               List<String> cells, Set<String> distinct, ItemStack result,
+                               double xp, int cookingTime,
+                               List<RecipeDraft.ExtraOutput> extras, CreateMachine machine,
+                               String heat) {
         String outputItem = result == null || result.isEmpty() ? "" : idOf(result);
         String outputName = result == null || result.isEmpty() ? "" : result.getHoverName().getString();
         int count = result == null || result.isEmpty() ? 1 : result.getCount();
@@ -231,7 +257,8 @@ public final class VanillaRecipeLookup {
         }
 
         return new Found(recipeId.toString(), outputItem, outputName, count, shapeless, type,
-                cells, new ArrayList<>(distinct), sb.toString(), xp, cookingTime);
+                cells, new ArrayList<>(distinct), sb.toString(), xp, cookingTime, extras, machine,
+                heat);
     }
 
     private static String trimNumber(double value) {
@@ -313,5 +340,233 @@ public final class VanillaRecipeLookup {
     private static String idOf(ItemStack stack) {
         ResourceLocation key = ForgeRegistries.ITEMS.getKey(stack.getItem());
         return key == null ? null : key.toString();
+    }
+
+    // ================================================================== 按配方 ID 反查
+
+    /**
+     * 按配方 ID 查一条配方并转成编辑器能用的快照。
+     *
+     * <p>这是「搜索框输入配方 ID 直接跳过去」的入口。它对<b>所有模组</b>的配方一视同仁：
+     * 先按 ID 从 {@code RecipeManager} 里取出来，再看它的配方类型能不能被编辑器表达。
+     * 能表达的就按类型抽数据；不能表达的返回 {@code null}，由调用方给出「类型暂不支持」的提示，
+     * 而不是静默什么都不做。
+     *
+     * <p>大部分模组的配方类是私有的，所以数据提取走反射（{@link #call}），
+     * 拿不到就当没有——不会因为某个模组字段改名就崩。
+     */
+    public static Found byId(Level level, ResourceLocation id) {
+        if (level == null || id == null) {
+            return null;
+        }
+        Optional<? extends Recipe<?>> opt = level.getRecipeManager().byKey(id);
+        if (opt.isEmpty()) {
+            return null;
+        }
+        Recipe<?> recipe = opt.get();
+        RecipeType type = typeOf(recipe);
+        if (type == null || type.isSequenced()) {
+            // 序列组装是一串嵌套子配方，暂时不做反查
+            return null;
+        }
+        RegistryAccess access = level.registryAccess();
+        try {
+            if (type == RecipeType.FARMERS_CUTTING) {
+                return fromCutting(recipe, access);
+            }
+            if (type == RecipeType.FARMERS_COOKING) {
+                return fromCookingPot(recipe, access);
+            }
+            if (type.isCreate()) {
+                return fromCreateProcessing(recipe, access, type);
+            }
+            return switch (type.category()) {
+                case CRAFTING -> fromCrafting(recipe, access);
+                case COOKING -> fromCooking((AbstractCookingRecipe) recipe, access, type);
+                case SMITHING -> fromSmithing(recipe, access);
+                default -> null;
+            };
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /**
+     * 配方类型 → 编辑器类型。
+     *
+     * <p>只按 {@code recipe.getType()} 的注册名判断，不认具体类：
+     * 这样任何模组只要用的是这些类型，都能跳过来。
+     */
+    public static RecipeType typeOf(Recipe<?> recipe) {
+        ResourceLocation key = BuiltInRegistries.RECIPE_TYPE.getKey(recipe.getType());
+        if (key == null) {
+            return null;
+        }
+        String ns = key.getNamespace();
+        String path = key.getPath();
+        if ("minecraft".equals(ns)) {
+            return switch (path) {
+                case "crafting" -> RecipeType.CRAFTING_TABLE;
+                case "smelting" -> RecipeType.FURNACE;
+                case "blasting" -> RecipeType.BLAST_FURNACE;
+                case "smoking" -> RecipeType.SMOKER;
+                case "campfire_cooking" -> RecipeType.CAMPFIRE;
+                case "smithing" -> RecipeType.SMITHING;
+                default -> null;
+            };
+        }
+        if ("farmersdelight".equals(ns)) {
+            return switch (path) {
+                case "cooking" -> RecipeType.FARMERS_COOKING;
+                case "cutting" -> RecipeType.FARMERS_CUTTING;
+                default -> null;
+            };
+        }
+        if ("create".equals(ns) && CreateMachine.byId(path) != null) {
+            return RecipeType.CREATE_PROCESSING;
+        }
+        return null;
+    }
+
+    /** 配方类型注册名，给「不支持」的提示用 */
+    public static String typeIdOf(Recipe<?> recipe) {
+        ResourceLocation key = BuiltInRegistries.RECIPE_TYPE.getKey(recipe.getType());
+        return key == null ? "?" : key.toString();
+    }
+
+    /** 农夫乐事 · 切菜板：材料 + 工具 + 若干产物（带概率） */
+    private static Found fromCutting(Recipe<?> recipe, RegistryAccess access) {
+        List<String> cells = blankCells();
+        Set<String> distinct = new LinkedHashSet<>();
+
+        List<Ingredient> ingredients = recipe.getIngredients();
+        if (!ingredients.isEmpty()) {
+            String id = describe(ingredients.get(0));
+            cells.set(0, id);
+            if (id != null) {
+                distinct.add(id);
+            }
+        }
+        if (call(recipe, "getTool") instanceof Ingredient tool) {
+            String id = describe(tool);
+            cells.set(1, id);
+            if (id != null) {
+                distinct.add(id);
+            }
+        }
+
+        ItemStack main = recipe.getResultItem(access);
+        List<RecipeDraft.ExtraOutput> extras = new ArrayList<>();
+        if (call(recipe, "getRollableResults") instanceof List<?> rollable) {
+            for (int i = 0; i < rollable.size(); i++) {
+                Object entry = rollable.get(i);
+                if (!(call(entry, "getStack") instanceof ItemStack stack) || stack.isEmpty()) {
+                    continue;
+                }
+                if (i == 0) {
+                    if (main == null || main.isEmpty()) {
+                        main = stack;
+                    }
+                    continue;
+                }
+                double chance = call(entry, "getChance") instanceof Float f ? f : 1D;
+                extras.add(new RecipeDraft.ExtraOutput(idOf(stack), stack.getCount(), chance));
+            }
+        }
+        return build(recipe.getId(), RecipeType.FARMERS_CUTTING, false, cells, distinct,
+                main, 0D, RecipeDraft.DEFAULT_COOKING_TIME, extras, CreateMachine.CRUSHING, "");
+    }
+
+    /** 农夫乐事 · 烹饪锅：6 个材料 + 容器 + 产物 */
+    private static Found fromCookingPot(Recipe<?> recipe, RegistryAccess access) {
+        List<String> cells = blankCells();
+        Set<String> distinct = new LinkedHashSet<>();
+
+        List<Ingredient> ingredients = recipe.getIngredients();
+        for (int i = 0; i < 6 && i < ingredients.size(); i++) {
+            String id = describe(ingredients.get(i));
+            cells.set(i, id);
+            if (id != null) {
+                distinct.add(id);
+            }
+        }
+        if (call(recipe, "getOutputContainer") instanceof ItemStack container
+                && !container.isEmpty()) {
+            String id = idOf(container);
+            cells.set(6, id);
+            if (id != null) {
+                distinct.add(id);
+            }
+        }
+
+        double xp = call(recipe, "getExperience") instanceof Float f ? f : 0D;
+        int time = call(recipe, "getCookTime") instanceof Integer i ? i : 200;
+        return build(recipe.getId(), RecipeType.FARMERS_COOKING, false, cells, distinct,
+                recipe.getResultItem(access), xp, time);
+    }
+
+    /** 机械动力 · 处理配方：材料 + 产物（带概率）+ 时间 + 热度 */
+    private static Found fromCreateProcessing(Recipe<?> recipe, RegistryAccess access,
+                                              RecipeType type) {
+        List<String> cells = blankCells();
+        Set<String> distinct = new LinkedHashSet<>();
+
+        List<Ingredient> ingredients = recipe.getIngredients();
+        for (int i = 0; i < 9 && i < ingredients.size(); i++) {
+            String id = describe(ingredients.get(i));
+            cells.set(i, id);
+            if (id != null) {
+                distinct.add(id);
+            }
+        }
+
+        ItemStack main = recipe.getResultItem(access);
+        List<RecipeDraft.ExtraOutput> extras = new ArrayList<>();
+        if (call(recipe, "getRollableResults") instanceof List<?> rollable) {
+            for (int i = 0; i < rollable.size(); i++) {
+                Object entry = rollable.get(i);
+                if (!(call(entry, "getStack") instanceof ItemStack stack) || stack.isEmpty()) {
+                    continue;
+                }
+                if (i == 0) {
+                    if (main == null || main.isEmpty()) {
+                        main = stack;
+                    }
+                    continue;
+                }
+                double chance = call(entry, "getChance") instanceof Float f ? f : 1D;
+                extras.add(new RecipeDraft.ExtraOutput(idOf(stack), stack.getCount(), chance));
+            }
+        }
+
+        int time = call(recipe, "getProcessingDuration") instanceof Integer i
+                ? i : RecipeDraft.DEFAULT_COOKING_TIME;
+        String heat = "";
+        if (call(recipe, "getRequiredHeat") instanceof Enum<?> required) {
+            heat = switch (required.name()) {
+                case "HEATED" -> "heated";
+                case "SUPERHEATED" -> "superheated";
+                default -> "";
+            };
+        }
+
+        CreateMachine machine = CreateMachine.byId(
+                BuiltInRegistries.RECIPE_TYPE.getKey(recipe.getType()).getPath());
+        return build(recipe.getId(), type, false, cells, distinct, main, 0D, time, extras,
+                machine == null ? CreateMachine.CRUSHING : machine, heat);
+    }
+
+    /** 反射调一个无参方法；拿不到就返回 {@code null}（模组改名/混淆都不至于崩） */
+    private static Object call(Object target, String method) {
+        if (target == null) {
+            return null;
+        }
+        try {
+            Method m = target.getClass().getMethod(method);
+            m.setAccessible(true);
+            return m.invoke(target);
+        } catch (Exception e) {
+            return null;
+        }
     }
 }

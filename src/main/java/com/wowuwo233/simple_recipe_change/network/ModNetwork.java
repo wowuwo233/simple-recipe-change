@@ -69,7 +69,9 @@ public final class ModNetwork {
                 DeleteIndexPacket::encode, DeleteIndexPacket::decode, DeleteIndexPacket::handle);
         CHANNEL.registerMessage(id++, PickItemPacket.class,
                 PickItemPacket::encode, PickItemPacket::decode, PickItemPacket::handle);
-        CHANNEL.registerMessage(id++, ReloadPacket.class,
+        CHANNEL.registerMessage(id++, LoadRecipeByIdPacket.class,
+                LoadRecipeByIdPacket::encode, LoadRecipeByIdPacket::decode,
+                LoadRecipeByIdPacket::handle);        CHANNEL.registerMessage(id++, ReloadPacket.class,
                 ReloadPacket::encode, ReloadPacket::decode, ReloadPacket::handle);
         CHANNEL.registerMessage(id++, EditorStatePacket.class,
                 EditorStatePacket::encode, EditorStatePacket::decode, EditorStatePacket::handle);
@@ -547,6 +549,70 @@ public final class ModNetwork {
             });
             ctx.setPacketHandled(true);
         }
+    }
+
+    /**
+     * 客户端：按配方 ID 跳转。
+     *
+     * <p>服务端从 {@code RecipeManager} 里按 ID 取出配方，判断类型能不能被编辑器表达，
+     * 能的话把整条配方回填过去（类型、材料、产物、副产物一起）。
+     */
+    public record LoadRecipeByIdPacket(String recipeId) {
+        public static void encode(LoadRecipeByIdPacket msg, FriendlyByteBuf buf) {
+            buf.writeUtf(msg.recipeId == null ? "" : msg.recipeId, 256);
+        }
+
+        public static LoadRecipeByIdPacket decode(FriendlyByteBuf buf) {
+            return new LoadRecipeByIdPacket(buf.readUtf(256));
+        }
+
+        public static void handle(LoadRecipeByIdPacket msg, Supplier<NetworkEvent.Context> ctxSupplier) {
+            NetworkEvent.Context ctx = ctxSupplier.get();
+            ctx.enqueueWork(() -> {
+                ServerPlayer player = ctx.getSender();
+                if (player == null || !(player.containerMenu instanceof RecipeEditorMenu menu)) {
+                    return;
+                }
+                String raw = msg.recipeId == null ? "" : msg.recipeId.trim();
+                ResourceLocation id = ResourceLocation.tryParse(raw);
+                if (id == null) {
+                    sendSaveResult(player, false, "配方 ID 格式不对，应该是 namespace:path", null);
+                    return;
+                }
+                if (player.serverLevel().getRecipeManager().byKey(id).isEmpty()) {
+                    sendSaveResult(player, false, "没找到配方：" + raw, null);
+                    return;
+                }
+                VanillaRecipeLookup.Found found = VanillaRecipeLookup.byId(player.serverLevel(), id);
+                if (found == null) {
+                    var recipe = player.serverLevel().getRecipeManager().byKey(id).orElseThrow();
+                    sendSaveResult(player, false,
+                            "配方 " + raw + " 的类型（" + VanillaRecipeLookup.typeIdOf(recipe)
+                                    + "）暂不支持编辑", null);
+                    return;
+                }
+                menu.applyFoundById(player, found);
+            });
+            ctx.setPacketHandled(true);
+        }
+    }
+
+    /** 客户端：请求按 ID 跳转 */
+    public static void requestLoadRecipeById(String recipeId) {
+        CHANNEL.sendToServer(new LoadRecipeByIdPacket(recipeId));
+    }
+
+    /** 把按 ID 查到的配方整体推给客户端（类型、材料、产物、副产物、时间/热度都带） */
+    public static void sendRecipeById(ServerPlayer player, RecipeEditorMenu menu,
+                                      VanillaRecipeLookup.Found found) {
+        CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), new EditorStatePacket(
+                Operation.MODIFY.ordinal(),
+                found.suggestedType().ordinal(), found.shapeless(), true, true,
+                found.recipeId(), "", found.recipeId(),
+                true, found.summary(),
+                encodeCells(found.cells()), true,
+                found.xp(), found.cookingTime(), encodeExtraOutputs(found.extras()),
+                found.machine().ordinal(), found.heat(), ""));
     }
 
     // ================================================================== 重载

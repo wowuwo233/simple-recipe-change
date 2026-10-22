@@ -90,6 +90,16 @@ public enum CreateMachine {
         return id;
     }
 
+    /** 按配方类型路径反查机器；不是 Create 处理配方返回 {@code null} */
+    public static CreateMachine byId(String path) {
+        for (CreateMachine machine : values()) {
+            if (machine.id.equals(path)) {
+                return machine;
+            }
+        }
+        return null;
+    }
+
     /**
      * 界面上显示的名字，格式是「机器名：动作」——
      * 比如 {@code 粉碎轮：粉碎}、{@code 动力冲压机：冲压}。

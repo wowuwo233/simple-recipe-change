@@ -603,6 +603,30 @@ public class RecipeEditorMenu extends AbstractContainerMenu {
         ModNetwork.sendLoadedState(player, this, entry);
     }
 
+    /**
+     * 按配方 ID 查到的配方：切到对应类型、进入「修改配方」、把产物放进产物格，再整包推给客户端。
+     *
+     * <p>进入 MODIFY 是因为玩家点「跳转」十有八九是想改这条配方；
+     * 保存时会先 {@code event.remove({id})} 再写新的。
+     */
+    public void applyFoundById(ServerPlayer player, VanillaRecipeLookup.Found found) {
+        this.operation = Operation.MODIFY;
+        this.recipeType = found.suggestedType();
+        this.sourceRecipeId = found.recipeId();
+        this.lastFound = found;
+        setCreateMachine(found.machine());
+        layoutSlots(false);
+
+        ItemStack out = stackOf(found.outputItem());
+        if (!out.isEmpty()) {
+            out.setCount(Math.max(1, Math.min(64, found.outputCount())));
+        }
+        this.output.setItem(0, out);
+        this.lastOutput = out.copy();
+
+        ModNetwork.sendRecipeById(player, this, found);
+    }
+
     /** 清空编辑区（产物格里的东西还给玩家） */
     public void clearEditor(Player player) {
         returnItems(player, this.output);
