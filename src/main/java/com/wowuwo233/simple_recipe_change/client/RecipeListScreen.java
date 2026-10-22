@@ -150,7 +150,7 @@ public class RecipeListScreen extends Screen {
 
                 graphics.fill(left + 6, rowY, left + PANEL_WIDTH - 6, rowY + ROW_HEIGHT - 2, COLOR_ROW);
 
-                ItemStack stack = RecipeEditorMenu.stackOf(entry.outputItem());
+                ItemStack stack = RecipeEditorMenu.stackOf(entry.outputItem(), entry.outputNbt());
                 if (!stack.isEmpty()) {
                     graphics.renderItem(stack, left + 10, rowY + 3);
                 }

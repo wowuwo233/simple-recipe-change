@@ -3,7 +3,7 @@
 在游戏内可视化编辑配方的 Forge 模组：按 **G 键**打开全中文编辑器，
 可以**添加配方**、**修改已有配方**、**删除配方**，并把结果写成 **KubeJS 可读的脚本**。
 
-当前版本 **1.8.1**。不添加任何物品或方块，只做配方编辑。
+当前版本 **1.10.0**。不添加任何物品或方块，只做配方编辑。
 
 ---
 
@@ -13,7 +13,7 @@
 |---|---|
 | 快捷键 | **G** 打开配方编辑器（可在「选项 → 按键控制」改） |
 | 三个独立模式 | **添加配方 / 修改配方 / 删除配方**，各自一个按钮，不合并 |
-| 配方类型（16 种） | **原版 6 种**：工作台合成（3×3）、物品栏合成（2×2）、**熔炉**、**高炉**、**烟熏炉**、**锻造台**<br>**农夫乐事 2 种**：**烹饪锅**、**切菜板**<br>**机械动力 1 类 14 台机器**：粉碎轮 / 石磨 / 动力锯 / 工作盆 / 动力冲压机 / 动力搅拌器 / 鼓风机 / 砂纸 / 注液器 / 机械手，见 [§4.7](#47-机械动力处理配方) |
+| 配方类型（10 种） | **原版 7 种**：工作台合成（3×3）、物品栏合成（2×2）、**熔炉**、**高炉**、**烟熏炉**、**营火**、**锻造台**<br>**农夫乐事 2 种**：**烹饪锅**、**切菜板**<br>**机械动力 1 类 14 台机器**：粉碎轮 / 石磨 / 动力锯 / 工作盆 / 动力冲压机 / 动力搅拌器 / 鼓风机 / 砂纸 / 注液器 / 机械手，见 [§4.7](#47-机械动力处理配方) |
 | 类型分组 | **原版 / 农夫乐事 / 机械动力分开选**：「分组」按钮在可用分组间切换，「类型」按钮只在当前组内循环，不用一路按过去 |
 | 机械动力副产物 | 副产物栏位与概率框**按机器显隐**——统计过 Create 自带的 1766 个官方配方，只有粉碎(179/192)、研磨(159/222)、洗涤(9/38)、缠魂(1/21) 有多产物，给其余机器摆副产物格纯属误导 |
 | 备注 | 「备注」输入框的内容写成脚本里的 **`//` 行注释**放在配方上方；多行备注每行各加一个 `//` |
@@ -27,14 +27,15 @@
 | 搜索语法 | 中文名 / 英文名 / 物品 ID / **拼音全拼** / **拼音首字母** / **`@模组名`**（与 JEI 同款） |
 | 物品来源 | 在「全部物品」（注册表，即 JEI 展示的那一套）与「我的背包」之间切换 |
 | 我的配方 | 查看自己写过的配方，可载回编辑器改，也可直接删除 |
-| **重载按钮** | 触发资源重载（等同 `/reload`）。⚠️ 实现上**仍要求 OP**：见 [§15 已知问题](#15-已知问题与遗留项) |
+| **重载按钮** | 触发资源重载（等同 `/reload`）。需要 **OP 等级 2**（单人游戏直接放行）；没权限时会在聊天栏收到明确提示，不再点了没反应 |
+| **产物 NBT** | 产物格里的物品带 NBT（附魔、药水、自定义名称……）时，脚本写成 `'1x minecraft:potion {Potion:"minecraft:healing"}'`，标签不再被洗掉 |
+| **产物NBT 开关** | 底栏「产物NBT：是 / 否」：产物带 NBT 时决定写不写进脚本；产物没有 NBT 时显示「无」并置灰 |
 | 保存反馈 | 界面显示状态，**聊天栏输出写入文件的完整绝对路径** |
-| 界面语言 | 全中文（硬编码，无翻译层；`en_us.json` 里也填的是中文） |
+| 界面语言 | 全中文（硬编码，无翻译层；`en_us.json` 只放两个按键名，填的是英文） |
 | 其它 | 不会被 E（物品栏）键关掉；Esc 先关搜索浮层再关界面 |
 
 > **权限说明**：写文件类操作（保存配方 / 删除配方 / 重载）在**专用服务器**上要求 OP 等级 2
-> （`ModNetwork.canWrite()`），单人游戏直接放行。重载按钮虽然注释写着「不依赖 OP 权限」，
-> 但实现里同样走了这道校验——这是**注释与实现不一致**，不是本文档的笔误。
+> （`ModNetwork.canWrite()`），单人游戏直接放行；被拒时会收到聊天提示。
 
 ---
 
@@ -46,7 +47,7 @@
 | Forge | 47.4.26（1.20.1 推荐版） | 同上 |
 | Java (JDK) | **17**（Oracle JDK 17.0.12） | `C:\Program Files\Java\jdk-17` |
 | Gradle | 8.8 | `D:\DSH work\.gradle-home` |
-| 模组版本 | **1.8.1** | `gradle.properties` → `mod_version` |
+| 模组版本 | **1.10.0** | `gradle.properties` → `mod_version` |
 
 > MC 1.20.1 / Forge 47.x 的编译与运行目标都是 **Java 17**，用 JDK 21 会报 class file version 错误。
 
@@ -55,7 +56,7 @@
 ## 3. 常用命令
 
 ```powershell
-.\dev.ps1 build            # 编译，产物 build\libs\simple_recipe_change-1.8.1.jar
+.\dev.ps1 build            # 编译，产物 build\libs\simple_recipe_change-1.10.0.jar
 .\dev.ps1 runClient        # 启动开发版客户端
 .\dev.ps1 runServer        # 启动开发版服务端
 .\dev.ps1 runData          # 数据生成
@@ -82,8 +83,10 @@ CMD 用户用 `dev.cmd build`。PowerShell 若报「禁止运行脚本」，直�
 3. 合成格尺寸按「类型」按钮切：工作台（3×3）/ 物品栏（2×2）
    - 容器实际始终是 3×3；切到 2×2 时多出的行列会被**禁用并画成红色**
 4. 填「配方名」（可留空自动生成）与「文件名」
-5. 点「保存并写入」
-6. 改错了点底部「**清空编辑区**」——会把产物格里的东西**还回背包**并清空输入槽
+5. 产物带 NBT 时，底栏「**产物NBT**」可以选是否把它写进脚本（默认「是」）；
+   产物没有 NBT 时这个按钮显示「无」并置灰
+6. 点「保存并写入」
+7. 改错了点底部「**清空编辑区**」——会把产物格里的东西**还回背包**并清空输入槽
 
 ### 4.2 修改配方
 
@@ -116,14 +119,15 @@ CMD 用户用 `dev.cmd build`。PowerShell 若报「禁止运行脚本」，直�
 「类型」按钮切到熔炉、高炉或烟熏炉后，界面变成一行：**原料 → 产物**，并多出两个输入框：
 
 - **获得经验** —— 默认 0，写成 `.xp(0.35)`
-- **烧制时间** —— 单位 tick，默认 200；不是 200 时才写出 `.cookingTime(100)`
+- **烧制时间** —— 单位 tick，默认值随类型走：熔炉/高炉/烟熏炉 **200**、营火 **600**；不等于默认值时才写出 `.cookingTime(...)`
 
 生成：
 
 ```js
 event.smelting('minecraft:glass', 'minecraft:sand').xp(0.35).cookingTime(100)
-event.blasting(...)    // 高炉
-event.smoking(...)     // 烟熏炉
+event.blasting(...)         // 高炉
+event.smoking(...)          // 烟熏炉
+event.campfireCooking(...)  // 营火（默认 600 tick）
 ```
 
 ### 4.5 锻造配方
@@ -250,9 +254,8 @@ event.recipes.create.crushing(
 - **聊天栏输出文件的完整绝对路径**，例如：
   `[简易配方修改] 配方已保存，文件路径：D:\...\kubejs\server_scripts\xxx.js`
 - 未安装 KubeJS 时会提示「未检测到 kubejs 目录，安装后才会生效」
-- 点「**重载脚本**」（底部）或「**重载**」（第一行）即可让 KubeJS 重新读取，
-  等同 `/reload`。⚠️ 二者是**同一个功能的两个入口按钮**（都调 `ModNetwork.requestReload()`），
-  且都要求 OP（见 [§1 权限说明](#1-功能一览)）。
+- 点第一行的「**重载**」即可让 KubeJS 重新读取，等同 `/reload`。
+  该操作需要 **OP 等级 2**（单人游戏直接放行）；没权限时会在聊天栏收到提示（见 [§1](#1-功能一览)）。
 
 ---
 
@@ -329,6 +332,22 @@ ServerEvents.recipes(event => {
 event.remove({ id: 'minecraft:torch' })       // 按配方 ID
 event.remove({ output: 'minecraft:torch' })   // 按产物
 ```
+
+**带 NBT 的产物**：产物格里的物品有附魔、药水效果、自定义名称这些 NBT 时，NBT 会被原样写进脚本：
+
+```js
+event.shaped(
+  '3x minecraft:potion {Potion:"minecraft:healing"}',
+  ...
+)
+```
+
+> ⚠️ **物品 ID 和 `{` 之间那个空格不能省**。KubeJS 的 `ItemStackJS.parse(String)` 用**第一个空格**
+> 切出物品 ID，剩下的部分只有以 `{` 开头才会被当成 SNBT（内部走 `NBTUtils.toTagCompound` →
+> `TagParser.parseTag`）。写成 `'minecraft:potion{...}'` 会把整串当成物品 ID，直接报错。
+> 数量前缀 `3x ` 写在最前面。
+
+不想带 NBT 时，把底栏「**产物NBT**」切到「否」，生成的仍是纯 `'3x minecraft:potion'`。
 
 **标签会被保留**：如果原版配方用的是 `#minecraft:planks` 这类标签，
 反查时不会退化成某一种具体木材，而是继续写 `#minecraft:planks`。
@@ -485,7 +504,6 @@ simple-recipe-change\
 └── src\main\
     ├── java\com\wowuwo233\simple_recipe_change\
     │   ├── SimpleRecipeChangeMod.java   ← 主类
-    │   ├── Config.java                  ← ⚠️ MDK 示例残留，无功能，见 §15-②
     │   ├── kubejs\                      ← ★ 纯逻辑：数据模型 + 脚本生成（可脱机测试）
     │   │   ├── Operation / RemoveBy / RecipeType / RecipeDraft
     │   │   ├── KubeJsWriter             ← 渲染 KubeJS 代码 + 托管块增删改
@@ -512,7 +530,7 @@ mod_id=simple_recipe_change
 mod_name=Simple Recipe Change
 mod_group_id=com.wowuwo233.simple_recipe_change
 mod_authors=wowuwo233
-mod_version=1.8.1
+mod_version=1.10.0
 ```
 
 改动后需同步：主类的 `MODID` 常量、Java 包目录与 `package` 语句、
@@ -539,12 +557,19 @@ mod_version=1.8.1
       `kubejs-forge-2001.6.5-build.26.jar` 逐个确认（方法名、参数顺序、键名），
       结果记在 [§8](#8-第三方配方类型的支持情况)
 - [x] `dev.cmd build` → **BUILD SUCCESSFUL**，`jar` 与 `reobfJar` 都正常执行
-- [x] 产物 `simple_recipe_change-1.8.1.jar`（234.6 KB，**48 个类**）内部结构正确：
-      `mods.toml` 的 `modId=simple_recipe_change` / `version=1.8.1` / `license=GPL-3.0-only`
+- [x] 产物 `simple_recipe_change-1.10.0.jar`（232.4 KB，**50 个类**）内部结构正确：
+      `mods.toml` 的 `modId=simple_recipe_change` / `version=1.10.0` / `license=GPL-3.0-only`
       与 `gradle.properties` 一致；
       资源里**无任何示例物品**（MDK 示例物品已清干净），只有 `pack.mcmeta`、两个 lang 文件、
       `mods.toml` 和 189 KB 的 `pinyin.txt`
-- [x] 已输出到工作区：`D:\DSH work\simple_recipe_change-1.8.1.jar`
+- [x] 已输出到工作区：`D:\DSH work\simple_recipe_change-1.10.0.jar`
+- [x] **1.8.4 修完遗留项后复验**：`compileJava` 与 `build` 均 **BUILD SUCCESSFUL**；
+      `WriterCheck`（含新增的「切换类型时格子重排」用例）与 `SearchCheck` 双双 **ALL CHECKS PASSED**；
+      jar 内 `description` 的中文正常（`gradle.properties` 里用 `\uXXXX` 转义后写入），
+      `Config.class` 已不再打进包
+- [x] **1.9.0 产物 NBT**：`WriterCheck.outputNbt()` 覆盖「单个产物带 NBT / 数量前缀位置 /
+      无 NBT 时保持原样 / NBT 内单引号转义 / 修改模式两条语句都带 NBT」，
+      与 `SearchCheck` 一起 **ALL CHECKS PASSED**
 
 **此前构建时验证（沿用历史记录，本次未重跑）：**
 
@@ -556,7 +581,7 @@ mod_version=1.8.1
 **仅代码核实（读源码确认，未在游戏里点过）：**
 
 - [x] 12 个网络包全部注册（`ModNetwork.java:54-77`）
-- [x] 8 种配方类型的界面布局随模式/类型切换（`RecipeEditorMenu.java` 的 `layoutSlots`）
+- [x] 9 种配方类型的界面布局随模式/类型切换（`RecipeEditorMenu.java` 的 `layoutSlots`）
 - [x] 输入槽确为不可交互的「展示槽」，产物格是真实槽位（`RecipeEditorMenu.java:107-130`）
 - [x] `#标签` 在反查时保留（`VanillaRecipeLookup.java:248-306`，要求标签内物品数**完全相等**才输出）
 
@@ -565,59 +590,154 @@ mod_version=1.8.1
 >
 > 要让配方真正生效需要额外安装 **KubeJS**（把它的 jar 放进 `mods`）。
 >
-> 工作区里那个 `simple_recipe_change-1.0.0.jar`（56.9 KB）是早期版本残留，可手动删除；
-> **请用 `simple_recipe_change-1.8.1.jar`**。
+> 工作区里还留着旧版 `simple_recipe_change-1.8.3.jar` / `1.8.4.jar` / `1.9.0.jar` / `1.9.1.jar`，可手动删除；
+> **请用 `simple_recipe_change-1.10.0.jar`**。
 
 ---
 
-## 13. 已知问题与遗留项
+## 13. 遗留项处理记录（1.8.4 – 1.10.0）
 
-代码审计发现、尚未修复的问题。按影响排序：
+1.8.1 审计出来的问题在 1.8.4 逐条处理了一遍。下表是结论，细节在后文。
 
-**① 「重载」注释与实现矛盾（实际行为与文档不符）**
-`ReloadPacket` 的注释写着「不依赖玩家是否有 OP 权限」（`ModNetwork.java:457`），
-但 `:470` 紧接着调用了 `canWrite(player)`，在专用服务器上把非 OP 玩家直接 `return` 掉。
-**重载按钮因此确实需要 OP**。要真正做到「不依赖 OP」，把 `:470` 的校验去掉即可。
+| # | 问题 | 处理 |
+|---|---|---|
+| ① | 重载注释与实现矛盾 | **保留 OP 限制**，改注释；被拒时补聊天提示 |
+| ② | `Config.java` 是 MDK 残留却注册成真配置 | 删除文件与注册 |
+| ③ | 两个重载按钮 | 删掉底栏那个，只留顶部 |
+| ④ | 未被使用的死代码 | 删除确认无引用的；测试在用的保留 |
+| ⑤ | `mod_description` 是英文占位 | 改成中文真实描述 |
+| ⑥ | `en_us.json` 里填的是中文 | 改成英文 |
+| ⑦ | 索引 500 条上限静默丢弃 | 触顶时在保存反馈里明确提示 |
+| ⑧ | `cells` 排布宽度随类型变 | `withType()` 按新旧宽度重排，并加回归用例 |
+| ⑨ | 产物 NBT 被洗掉（1.9.0） | 保存时读产物槽的 SNBT，写进脚本与索引 |
+| ⑩ | 快捷栏被窗口底边裁掉（1.9.1） | 状态提示挪到标题栏，窗口 388 → 370，背包整体上移 |
+| ⑪ | 缺营火配方（1.10.0） | 新增 `CAMPFIRE` 类型，默认 600 tick |
 
-**② `Config.java` 是 MDK 示例残留，却注册成了真实配置**
-`logDirtBlock`（默认 true）、`magicNumber`（默认 42）、`magicNumberIntroduction`、
-`items`（默认 `["minecraft:iron_ingot"]`）——全仓库**没有任何地方读取**这些字段，
-但 `SimpleRecipeChangeMod.java:39` 注册了它，于是玩家的
-`config/simple_recipe_change-common.toml` 里会出现**改了毫无影响的配置项**。
-建议直接删除 `Config.java` 和那行注册。
+### ① 重载权限：保留限制，而不是放开
 
-**③ 重载功能有两个入口按钮**
-第一行的「重载」（`RecipeEditorScreen.java:160-165`）和底部的「重载脚本」（`:233-238`）
-调用完全相同、文案完全相同。建议删掉一个。
+原注释写「不依赖 OP」，实现里却调了 `canWrite`。两条路都能消除矛盾，这里选了**保留限制**：
+`server.reloadResources(...)` 会重建全部数据包与配方，一次几百毫秒的服务端停顿，
+任何玩家都能按的话，几个人连点就能把服务器卡住。
 
-**④ 未被使用的死代码**（不影响运行，但会误导后来的人）
+改法是：注释如实写明「需要 OP 等级 2（单人游戏直接放行）」，
+并在被拒时回一句 `[简易配方修改] 重载需要管理员权限（OP 等级 2）`——之前是静默 `return`，
+玩家点了没反应也查不出原因。
+
+### ② 删掉 `Config.java`
+
+`logDirtBlock` / `magicNumber` / `magicNumberIntroduction` / `items` 四个配置项全仓库无人读取，
+却因为 `registerConfig` 出现在玩家的 `config/simple_recipe_change-common.toml` 里，
+改了毫无作用。文件和注册一起删除，`build.gradle` 不用动。
+
+### ③ 重载入口只留一个
+
+底栏的「重载脚本」与顶部的「重载」行为完全相同，删掉底栏那个；
+「清空编辑区」左移到它原来的位置，底栏变成「保存并写入 / 清空编辑区」两个按钮。
+
+### ④ 死代码：删了 6 处，保留了 2 处
+
+删除（确认全仓库无引用）：
 
 | 位置 | 内容 |
 |---|---|
-| `ItemSearchCache.java:72-89` | `countInInventory()` —— 悬停数量功能没做完 |
-| `RecipeDraft.java` | 14 个 `withXxx()`、`distinctIngredients()`、`trimmedPattern()`、`contentBox()`（`KubeJsWriter` 自己重算了一遍包围盒） |
-| `RecipeIndex.java:136-160` | `toJson()` / `parseJson()` / `shortName()` |
-| `RecipeIndexEntry.java:71-79` | `toDraft()`（载入走的是 `RecipeEditorMenu.applyEntry()` 手工赋值） |
-| `Operation.java:35-47` | `description()` / `writesGrid()` |
-| `RecipeType.java:128-135` | `byId()`（`byOrdinal()` 在用） |
-| `KubeJsWriter.java:335-337` | `renderBlock()` 的单条重载 |
+| `ItemSearchCache.java` | `countInInventory()` |
+| `RecipeDraft.java` | `distinctIngredients()` / `trimmedPattern()` / `contentBox()` |
+| `RecipeIndex.java` | `toJson(RecipeIndexEntry)` / `parseJson(String)` / `shortName()` / `prim()` |
+| `RecipeIndexEntry.java` | `toDraft()` |
+| `Operation.java` | `description()` 字段与 `writesGrid()` |
+| `RecipeType.java` / `CreateMachine.java` | 各自的 `byId()` |
 
-其中 `RecipeDraft` 那些 `withXxx()` 是 `tools/WriterCheck.java` 预留的测试 API，删之前先确认测试还过。
+**保留**（原审计把它们算作死代码，其实测试在用）：
 
-**⑤ `mod_description` 仍是 MDK 英文占位**
-`gradle.properties` 里写着 `A simple mod that changes crafting recipes.\nEdit src/main/java to get started.`
-这个字符串会显示在 Forge 的模组列表里。
+- `KubeJsWriter.renderBlock(String, String)` 单条重载 —— `tools/WriterCheck.java` 有 8 处调用
+- `RecipeDraft` 的 `withXxx()` —— `WriterCheck` 的用例 API，删了测试编不过
 
-**⑥ `en_us.json` 里填的是中文**
-既然界面语言就是全中文硬编码，这个文件其实没有意义；要么填英文，要么删掉。
+### ⑤ 模组描述
 
-**⑦ 索引上限 500 条，超出静默丢弃**
-`RecipeIndex.java:28` `MAX_ENTRIES = 500`，`:71` 超出直接截断。
-注意此时 `.js` 文件**已经写进去了**，只是索引里查不到——「我的配方」会漏掉它。
-界面目前也没有任何提示。
+`gradle.properties` 的 `mod_description` 换成中文真实描述。
 
+⚠️ 这里有个坑：**Gradle 按 ISO-8859-1 读 `gradle.properties`**，直接写中文会在
+`mods.toml` 里变成乱码（`å¨æ¸¸æ` 那种）。必须写成 `\uXXXX` 转义，文件里留了一行解码后的原文备查。
 
-**⑧ `cells` 数组的排布宽度由「当前类型」决定**
-`cells` 按当前类型的网格宽度行优先排布。切换类型时客户端会重建数组，
-但如果外部代码（网络包、插件）用另一种宽度的数组调 `withType()` 改变类型，
-格子会被错位解读。`tools/WriterCheck.java` 的 `inventory2x2()` 用例记录了这个约定。
+### ⑥ `en_us.json` 改成英文
+
+界面本身是硬编码中文，这个文件只剩两个按键名。既然它是 `en_us`，就填英文：
+`Simple Recipe Change` / `Open Recipe Editor`。
+
+### ⑦ 索引触顶不再静默
+
+`RecipeIndex.upsert()` 现在返回「是否丢了旧记录」，`KubeJsFileWriter` 把它拼进保存反馈：
+
+> 注意：索引已达 500 条上限，最旧的一条已从「我的配方」移出（它的 .js 脚本仍然有效）
+
+上限本身没动——500 条够用，真要改得连索引结构一起动。
+
+### ⑧ `withType()` 现在会重排格子
+
+`cells` 是按**当前类型宽度**行优先排布的（`cell(x,y)` → `y * gridWidth + x`）。
+3×3 的左上 2×2 是下标 0、1、3、4；直接换成 2×2 会被读成 0、1、2、3，第 2 行整个错位。
+`withType()` 现在按新旧宽度重排，只保留重叠的左上角区域。
+`WriterCheck.typeChangeReflow()` 盯着这个行为（改动前该用例会挂）。
+
+### ⑨ 产物 NBT（1.9.0）
+
+原来的 `quoteOutput` 只写物品 ID，产物格里的附魔、药水效果、自定义名称全被洗掉，
+合成出来是个白板物品。
+
+现在的做法：
+
+1. 保存时由**服务端**读产物槽里真实的 `ItemStack`，`getTag().toString()` 拿到 SNBT
+   （客户端只有 ID 和数量，拿不到 NBT，所以这一步只能在服务端做）；
+2. 渲染成 `'3x minecraft:potion {Potion:"minecraft:healing"}'`；
+3. NBT 一起写进索引的 `outputNbt` 字段，「我的配方」载入时用 `stackOf(id, nbt)` 还原到产物格，
+   再保存不会丢；旧索引没有这个字段，按空串处理（向后兼容）。
+
+**两个坑都记在 `KubeJsWriter` 的注释里**：
+
+- **ID 与 `{` 之间的空格是硬性要求**。KubeJS 的 `ItemStackJS.parse(String)` 用第一个空格切
+  物品 ID，剩下的部分只有以 `{` 开头才交给 `NBTUtils.toTagCompound` → `TagParser.parseTag`。
+  少了这个空格，整串会被当成物品 ID 直接报错。
+- **NBT 必须做 JS 字符串转义**（`\` `'` 换行）。自定义名称里出现单引号很常见，
+  不转义会让生成的 `.js` 变成语法错误，整个脚本文件都加载不了。
+
+`WriterCheck.outputNbt()` 覆盖了这两点。
+
+1.9.1 又在底栏加了「**产物NBT**」开关：默认「是」，产物没有 NBT 时显示「无」并置灰；
+关掉之后写进脚本和索引的都不带 NBT（适合「不管放什么进去，都产出干净物品」的整合包）。
+
+### ⑩ 窗口高度与快捷栏（1.9.1）
+
+1080p + GUI 缩放 3 时可用高度只有 360（1080/3），而窗口是 388——上下各被裁掉十几像素，
+最直观的现象就是玩家背包的快捷栏只剩一半。
+
+改法：把原来占着背包上方 16px 的**状态提示挪到标题栏右侧**（单行、超宽用省略号，
+完整信息仍在聊天栏），背包整块上移（`PLAYER_Y` 304→292、`HOTBAR_Y` 362→348），
+窗口高度 **388 → 370**。370 在 360 的可用高度里只溢出 10px（上下各 5px），
+快捷栏能完整露出来（最下面 1px 边框可能贴着屏幕边，不影响使用）。
+
+### ⑪ 营火（1.10.0）
+
+补上 `event.campfireCooking(...)`。它和熔炉同属「单原料 → 产物」，但原版默认时间是
+**600 tick**（熔炉 200），所以 `defaultProcessingTime()` 改成按类型返回，时间框的默认值和
+标签也跟着类型走；`appendCooking` 判断「要不要写 cookingTime」也改成对比该类型的默认值，
+否则营火每条都会多写一个 `.cookingTime(600)`。
+
+**铁砧 / 酿造台为什么没做**：1.20.1 原版只有 7 种配方类型（crafting / smelting / blasting /
+smoking / campfire_cooking / stonecutting / smithing），**没有铁砧和酿造台的配方类型**；
+KubeJS 2001.6.5 里也没有任何 anvil / brewing 相关类。铁砧逻辑硬编码在 `AnvilMenu`，
+只能靠 Forge 的 `AnvilUpdateEvent` 接管；酿造台的 `PotionBrewing.addMix` 是 **private static**。
+两者都必须在 Java 模组里实现，**做不到「生成 KubeJS 脚本、卸载模组后仍生效」**——
+这是平台限制，不是实现选择。
+
+---
+
+## 14. 仍未覆盖的部分
+
+- **界面没有在真实客户端里点开验证过**：需要图形显示，自动化环境做不到。
+  `.\dev.ps1 runClient` 后按 G 即可看到；布局或交互有问题，描述现象即可修。
+- **配方生效需要额外装 KubeJS**：把 jar 放进 `mods`，本模组只是生成脚本。
+- **额外产物仍不带 NBT**：切菜板的 4 个额外产物格、机械动力的副产物都是从搜索框按 ID 选的，
+  没有 NBT 来源，生成的还是纯 ID。要支持得先把这些格子改成真实槽位。
+- **输入材料仍不带 NBT**：输入槽是「展示槽 + 字符串」，只记物品 ID 或 `#标签`。
+  需要「必须用某个特定 NBT 物品当材料」时，得另外设计 `Item.of(...)` 的输入写法。
+- 旧版本 jar 仍留在 `D:\DSH work\`（`1.8.3`、`1.8.4`、`1.9.0`、`1.9.1`），**请用 `simple_recipe_change-1.10.0.jar`**。

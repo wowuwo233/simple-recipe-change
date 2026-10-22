@@ -112,6 +112,7 @@ public final class VanillaRecipeLookup {
             case FURNACE -> net.minecraft.world.item.crafting.RecipeType.SMELTING;
             case BLAST_FURNACE -> net.minecraft.world.item.crafting.RecipeType.BLASTING;
             case SMOKER -> net.minecraft.world.item.crafting.RecipeType.SMOKING;
+            case CAMPFIRE -> net.minecraft.world.item.crafting.RecipeType.CAMPFIRE_COOKING;
             default -> null;
         };
     }

@@ -14,6 +14,7 @@ import com.wowuwo233.simple_recipe_change.search.ItemSearch;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -60,8 +61,6 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
     private static final int COLOR_OK = 0xFF55FF55;
     private static final int COLOR_FAIL = 0xFFFF5555;
 
-    private static final int MAX_STATUS_LINES = 2;
-
     // 版面纵坐标
     private static final int MODE_Y = 22;
     private static final int SEARCH_Y = 46;
@@ -79,7 +78,6 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
     private static final int NOTE_LABEL_Y = 166;
     private static final int NOTE_Y = 176;
     private static final int BUTTONS_Y = 268;
-    private static final int STATUS_Y = 292;
 
     /**
      * 经验/成功率、处理时间/循环次数这两个框的 y。
@@ -88,8 +86,18 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
      * 而序列组装的内容区要整个让给 5 个步骤列（机器按钮 + 槽位），挪下来既腾了地方，
      * 也顺带填掉了加高窗口后空出来的那一段。
      */
-    private static final int XP_FIELD_Y = 148;
-    private static final int TIME_FIELD_Y_TWO_ROWS = 180;
+    /**
+     * 经验框 / 时间框的 y。
+     *
+     * <p>放在内容区<b>右上角</b>：所有类型的槽位都只占左边（最远到 x=138），
+     * x=150 往右整片是空的，把框放这儿不会跟任何槽位打架。
+     *
+     * <p>之前有过两版都错了：一版把它们放到底部，结果压住备注框；
+     * 一版放到 y=144/178，又跟备注框重叠。**关键是备注框横跨整个宽度**，
+     * 所以这两个框必须待在槽位区右边，别往下挪。
+     */
+    private static final int XP_FIELD_Y = 76;
+    private static final int TIME_FIELD_Y_TWO_ROWS = 106;
     /**
      * 只有时间框一行时它的 y（机械动力处理配方）。
      *
@@ -142,6 +150,20 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
      */
     private Button tagButton;
     private boolean useItemTags = false;
+
+    /**
+     * 产物是否携带 NBT。
+     *
+     * <p>产物格里的物品带附魔 / 药水效果 / 自定义名称时，默认把这些 NBT 一起写进脚本；
+     * 想「不管放进去的是什么，都产出干净物品」就把这个关掉。
+     *
+     * <p>注意这跟上面的 {@link #tagButton}（物品用标签）不是一回事：
+     * 那个管的是<b>输入材料</b>写成 {@code #标签}，这个管的是<b>产物</b>的 NBT。
+     */
+    private Button outputNbtButton;
+    private boolean carryOutputNbt = true;
+    /** 产物格当前是否真的带 NBT——决定按钮显示「无」还是「是 / 否」 */
+    private boolean outputHasNbt = false;
 
     /**
      * 机械动力的具体机器与热度要求。
@@ -278,7 +300,9 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
                 .bounds(this.leftPos + 202, this.topPos + MODE_Y, 66, 20)
                 .build());
 
-        this.addRenderableWidget(Button.builder(Component.literal("重载"), b -> {
+        // 全界面唯一的重载入口。底栏原本还有一个文案与行为完全相同的「重载脚本」，
+        // 两个按钮干同一件事只会让人犹豫点哪个，已删除。
+        this.reloadButton = this.addRenderableWidget(Button.builder(Component.literal("重载"), b -> {
                     ModNetwork.requestReload();
                     setStatus(true, "已请求重载，KubeJS 会重新读取脚本");
                 })
@@ -396,6 +420,19 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
                         RecipeEditorMenu.TAG_BUTTON_W, 20)
                 .build());
 
+        // 「产物NBT」开关：产物带 NBT 时决定要不要写进脚本。
+        // 底栏「清空编辑区」止于 x=184，「标签」从 268 开始，中间这 84px 正好放它。
+        this.outputNbtButton = this.addRenderableWidget(Button.builder(
+                        Component.literal(outputNbtLabel()), b -> {
+                            this.carryOutputNbt = !this.carryOutputNbt;
+                            refreshButtonStates();
+                        })
+                .bounds(this.leftPos + 188, this.topPos + BUTTONS_Y, 76, 20)
+                .build());
+        this.outputNbtButton.setTooltip(Tooltip.create(Component.literal(
+                "产物带 NBT（附魔 / 药水 / 自定义名称）时，是否把这些标签写进脚本。\n"
+                        + "产物格里的物品没有 NBT 时本项无效。")));
+
         // 控件都建好之后再统一摆一次位置与可见性：
         // init 前半段调用的那次是在字段创建之前，改不到它们。
         refreshButtonStates();
@@ -405,19 +442,12 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
                 .bounds(this.leftPos + 12, this.topPos + BUTTONS_Y, 84, 20)
                 .build());
 
-        this.reloadButton = this.addRenderableWidget(Button.builder(Component.literal("重载脚本"), b -> {
-                    ModNetwork.requestReload();
-                    setStatus(true, "已请求重载，KubeJS 会重新读取脚本");
-                })
-                .bounds(this.leftPos + 100, this.topPos + BUTTONS_Y, 84, 20)
-                .build());
-
         this.clearButton = this.addRenderableWidget(Button.builder(Component.literal("清空编辑区"), b -> {
                     ModNetwork.requestClearEditor();
                     this.inputItems = blankInputs();
                     setStatus(true, "已清空编辑区");
                 })
-                .bounds(this.leftPos + 188, this.topPos + BUTTONS_Y, 76, 20)
+                .bounds(this.leftPos + 100, this.topPos + BUTTONS_Y, 84, 20)
                 .build());
 
         applySlotLayout();
@@ -460,6 +490,21 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
         }
     }
 
+    /**
+     * 产物格的 NBT 状态变了就刷新「产物NBT」按钮。
+     *
+     * <p>放在 render 里每帧比一次：产物槽是真实槽位，玩家拖进拖出、搜索选中、
+     * 从「我的配方」载入都会改它，而这几条路径都没有现成的回调。
+     */
+    private void updateOutputNbtButton() {
+        ItemStack out = this.menu.getOutputContainer().getItem(0);
+        boolean has = out != null && !out.isEmpty() && out.hasTag();
+        if (has != this.outputHasNbt) {
+            this.outputHasNbt = has;
+            refreshButtonStates();
+        }
+    }
+
     private void refreshButtonStates() {
         Operation[] modes = {Operation.ADD, Operation.MODIFY, Operation.REMOVE};
         for (int i = 0; i < modeButtons.length; i++) {
@@ -477,6 +522,11 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
         }
         if (this.tagButton != null) {
             this.tagButton.setMessage(Component.literal(tagButtonLabel()));
+        }
+        if (this.outputNbtButton != null) {
+            // 删除模式不写产物；产物格没有 NBT 时也没什么可带
+            this.outputNbtButton.active = this.operation != Operation.REMOVE && this.outputHasNbt;
+            this.outputNbtButton.setMessage(Component.literal(outputNbtLabel()));
         }
         boolean adding = this.operation == Operation.ADD;
         boolean crafting = this.recipeType.isCrafting();
@@ -534,6 +584,19 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
 
     private String tagButtonLabel() {
         return "标签：" + (this.useItemTags ? "是" : "否");
+    }
+
+    /**
+     * 「产物NBT」按钮的文案。
+     *
+     * <p>产物格没放东西、或者放的东西本来就没 NBT 时显示「无」——这时候开关没有意义，
+     * 按钮也会置灰，免得玩家以为点了没反应是 bug。
+     */
+    private String outputNbtLabel() {
+        if (!this.outputHasNbt) {
+            return "产物NBT：无";
+        }
+        return "产物NBT：" + (this.carryOutputNbt ? "是" : "否");
     }
 
     /**
@@ -686,6 +749,10 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
         if (this.tagButton != null) {
             this.tagButton.visible = visible;
         }
+        // 「产物NBT」同理，搜索浮层展开时一起藏起来
+        if (this.outputNbtButton != null) {
+            this.outputNbtButton.visible = visible;
+        }
 
         if (visible && this.searchField != null) {
             this.setFocused(this.searchField);
@@ -834,8 +901,20 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
 
     @Override
     protected void renderLabels(GuiGraphics graphics, int mouseX, int mouseY) {
-        graphics.drawString(this.font, "配方编辑器  ·  " + this.operation.label() + "  ·  "
-                + this.recipeType.label(), 10, 6, COLOR_TEXT, false);
+        String title = "配方编辑器  ·  " + this.operation.label() + "  ·  " + this.recipeType.label();
+        graphics.drawString(this.font, title, 10, 6, COLOR_TEXT, false);
+
+        // 状态提示放标题栏右侧。它原本占着背包上方那 16px——窗口高度因此压不下来，
+        // 1080p + GUI 缩放 3（可用高度 360）时最下面的快捷栏会被屏幕裁掉。
+        if (statusOk != null) {
+            int left = 10 + this.font.width(title) + 8;
+            int maxWidth = 328 - left;
+            if (maxWidth > 30) {
+                String text = fitText(statusMessage, maxWidth);
+                graphics.drawString(this.font, text, 328 - this.font.width(text), 6,
+                        statusOk ? COLOR_OK : COLOR_FAIL, false);
+            }
+        }
 
         if (searching()) {
             return;
@@ -844,8 +923,9 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
         drawSlotLabels(graphics);
         graphics.drawString(this.font, secondaryCaption(), 12, CONTROLS_Y - 10, COLOR_LABEL, false);
         graphics.drawString(this.font, "配方名（可留空）", 12, LABEL_Y, COLOR_LABEL, false);
-        graphics.drawString(this.font, "备注（写成脚本里的 // 注释，可留空）", 12, NOTE_LABEL_Y,
-                COLOR_LABEL, false);
+        // 标签必须短：它从 x=12 起画，太长会撞上右边 x=150 的「烧制时间」标签。
+        // 完整说明放在输入框的提示文字里。
+        graphics.drawString(this.font, "备注（可留空）", 12, NOTE_LABEL_Y, COLOR_LABEL, false);
         graphics.drawString(this.font, "文件名", 176, LABEL_Y, COLOR_LABEL, false);
 
         boolean cooking = this.recipeType.hasCookingSettings();
@@ -853,8 +933,8 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
         if (cooking) {
             graphics.drawString(this.font, "获得经验", FIELD_X, XP_FIELD_Y - 10, COLOR_LABEL, false);
         }
-        // 时间框：烧制时间 / 处理时间 / 循环次数——之前被 hasCookingSettings 一起挡住了，
-        // 导致机械动力那两个框光秃秃的没有标签
+        // 时间框：烧制时间 / 处理时间——之前被 hasCookingSettings 一起挡住了，
+        // 导致机械动力那个框光秃秃的没有标签
         if (this.recipeType.hasTimeField()) {
             int ty = twoFieldRows() ? TIME_FIELD_Y_TWO_ROWS : TIME_FIELD_Y;
             graphics.drawString(this.font, this.recipeType.timeFieldLabel(), FIELD_X, ty - 10,
@@ -862,19 +942,6 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
         }
 
         renderFoundInfo(graphics);
-
-        if (statusOk != null) {
-            int color = statusOk ? COLOR_OK : COLOR_FAIL;
-            int sy = STATUS_Y;
-            int used = 0;
-            for (String line : wrapText(statusMessage, 316)) {
-                if (used++ >= MAX_STATUS_LINES) {
-                    break;
-                }
-                graphics.drawString(this.font, line, 12, sy, color, false);
-                sy += 9;
-            }
-        }
     }
 
     /** 在每个输入槽与产物格下面标明是什么 */
@@ -975,6 +1042,8 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        // 产物格可能被拖动、被搜索选中、被「我的配方」载入，NBT 状态随时会变
+        updateOutputNbtButton();
         this.renderBackground(graphics);
         super.render(graphics, mouseX, mouseY, partialTick);
 
@@ -1108,24 +1177,30 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
         return mx >= x && mx < x + w && my >= y && my < y + h;
     }
 
-    private List<String> wrapText(String text, int maxWidth) {
-        List<String> out = new ArrayList<>();
-        if (text == null || text.isEmpty()) {
-            return out;
+    /**
+     * 把状态文字压成一行并裁到指定宽度，超出部分用省略号。
+     *
+     * <p>标题栏右侧空间有限，而保存结果的提示里带换行（「已写入 xxx.js\n标识：xxx」），
+     * 直接画会盖到标题上，所以先拍平再裁。完整信息仍然在聊天栏里。
+     */
+    private String fitText(String text, int maxWidth) {
+        if (text == null || text.isBlank()) {
+            return "";
         }
-        for (String raw : text.split("\n", -1)) {
-            StringBuilder current = new StringBuilder();
-            for (int i = 0; i < raw.length(); i++) {
-                char c = raw.charAt(i);
-                if (current.length() > 0 && this.font.width(current.toString() + c) > maxWidth) {
-                    out.add(current.toString());
-                    current.setLength(0);
-                }
-                current.append(c);
+        String flat = text.replace('\r', ' ').replace('\n', ' ')
+                .replaceAll("\\s+", " ").trim();
+        if (this.font.width(flat) <= maxWidth) {
+            return flat;
+        }
+        String ellipsis = "…";
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < flat.length(); i++) {
+            if (this.font.width(sb.toString() + flat.charAt(i) + ellipsis) > maxWidth) {
+                break;
             }
-            out.add(current.toString());
+            sb.append(flat.charAt(i));
         }
-        return out;
+        return sb.toString() + ellipsis;
     }
 
     // ------------------------------------------------------------------ 交互
@@ -1339,7 +1414,8 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
                 collectExtraOutputs(),
                 this.createMachine.ordinal(),
                 this.createHeat,
-                this.noteField == null ? "" : this.noteField.getValue());
+                this.noteField == null ? "" : this.noteField.getValue(),
+                this.carryOutputNbt);
         setStatus(true, "正在写入…");
     }
 

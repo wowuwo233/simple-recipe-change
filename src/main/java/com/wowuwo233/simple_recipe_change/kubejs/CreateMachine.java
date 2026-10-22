@@ -136,15 +136,6 @@ public enum CreateMachine {
         return all[(ordinal() + 1) % all.length];
     }
 
-    public static CreateMachine byId(String id) {
-        for (CreateMachine m : values()) {
-            if (m.id.equals(id)) {
-                return m;
-            }
-        }
-        return CRUSHING;
-    }
-
     public static CreateMachine byOrdinal(int ordinal) {
         CreateMachine[] all = values();
         return (ordinal >= 0 && ordinal < all.length) ? all[ordinal] : CRUSHING;

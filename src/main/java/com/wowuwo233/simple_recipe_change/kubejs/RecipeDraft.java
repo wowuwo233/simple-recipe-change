@@ -195,9 +195,37 @@ public record RecipeDraft(
                 operation, removeBy, sourceRecipeId, xp, cookingTime, extraOutputs, sound, machine, heat, keepHeldItem, note);
     }
 
+    /**
+     * 换配方类型。
+     *
+     * <p>{@code cells} 是<b>按当前类型的宽度</b>行优先排布的（见 {@link #cell(int, int)}），
+     * 所以直接把 3×3 的数组套到 2×2 上，第 2 行会被错位读成第 1 行的后两格。
+     * 这里按新旧宽度重新排一次，只保留两者重叠的左上角区域，其余置空。
+     */
     public RecipeDraft withType(RecipeType newType) {
-        return copy(newType, shapeless, mirrored, recipeId, cells, outputItem, outputCount,
+        RecipeType target = newType == null ? RecipeType.CRAFTING_TABLE : newType;
+        return copy(target, shapeless, mirrored, recipeId, reflowCells(cells, type, target),
+                outputItem, outputCount,
                 operation, removeBy, sourceRecipeId, xp, cookingTime, extraOutputs, sound, machine, heat, keepHeldItem, note);
+    }
+
+    /** 把行优先排布的格子从 {@code from} 的网格搬到 {@code to} 的网格，重叠区域保留 */
+    private static List<String> reflowCells(List<String> cells, RecipeType from, RecipeType to) {
+        List<String> out = new ArrayList<>(to.gridWidth() * to.gridHeight());
+        for (int i = 0; i < to.gridWidth() * to.gridHeight(); i++) {
+            out.add(null);
+        }
+        int copyW = Math.min(from.gridWidth(), to.gridWidth());
+        int copyH = Math.min(from.gridHeight(), to.gridHeight());
+        for (int y = 0; y < copyH; y++) {
+            for (int x = 0; x < copyW; x++) {
+                int src = y * from.gridWidth() + x;
+                if (src < cells.size()) {
+                    out.set(y * to.gridWidth() + x, cells.get(src));
+                }
+            }
+        }
+        return out;
     }
 
     public RecipeDraft withShapeless(boolean value) {
@@ -291,57 +319,5 @@ public record RecipeDraft(
             }
         }
         return out;
-    }
-
-    /** 非空材料的去重列表，保持首次出现顺序 */
-    public List<String> distinctIngredients() {
-        List<String> out = new ArrayList<>();
-        for (String c : ingredients()) {
-            if (!out.contains(c)) {
-                out.add(c);
-            }
-        }
-        return out;
-    }
-
-    /**
-     * 裁掉四周的空行空列，返回紧凑的图案行（用 'X' 占位）。仅合成类有意义。
-     *
-     * <p>语义安全：原版 shaped 配方本来就允许图案在合成格里任意平移。
-     */
-    public List<String> trimmedPattern() {
-        int[] box = contentBox();
-        List<String> rows = new ArrayList<>();
-        if (box == null) {
-            return rows;
-        }
-        for (int y = box[1]; y <= box[3]; y++) {
-            StringBuilder sb = new StringBuilder();
-            for (int x = box[0]; x <= box[2]; x++) {
-                String c = cell(x, y);
-                sb.append(c == null || c.isBlank() ? ' ' : 'X');
-            }
-            rows.add(sb.toString());
-        }
-        return rows;
-    }
-
-    /** 非空区域的包围盒 {minX, minY, maxX, maxY}，全空时返回 null */
-    public int[] contentBox() {
-        int w = type.gridWidth();
-        int h = type.gridHeight();
-        int minX = w, minY = h, maxX = -1, maxY = -1;
-        for (int y = 0; y < h; y++) {
-            for (int x = 0; x < w; x++) {
-                String c = cell(x, y);
-                if (c != null && !c.isBlank()) {
-                    if (x < minX) minX = x;
-                    if (y < minY) minY = y;
-                    if (x > maxX) maxX = x;
-                    if (y > maxY) maxY = y;
-                }
-            }
-        }
-        return maxX < 0 ? null : new int[]{minX, minY, maxX, maxY};
     }
 }

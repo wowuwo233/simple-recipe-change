@@ -22,6 +22,11 @@ public enum RecipeType {
     FURNACE("furnace", "熔炉烧炼", "熔炉", Category.COOKING, 1, 1),
     BLAST_FURNACE("blast_furnace", "高炉烧炼", "高炉", Category.COOKING, 1, 1),
     SMOKER("smoker", "烟熏炉", "烟熏炉", Category.COOKING, 1, 1),
+    /**
+     * 营火烹饪：和熔炉一样是「单原料 → 产物」，但原版默认要 <b>600 tick</b>（熔炉是 200），
+     * 所以时间框的默认值随类型走。
+     */
+    CAMPFIRE("campfire", "营火烹饪", "营火", Category.COOKING, 1, 1),
     SMITHING("smithing", "锻造台", "锻造台", Category.SMITHING, 3, 1),
     /** 农夫乐事 · 烹饪锅：6 个材料槽 + 1 个容器槽 */
     FARMERS_COOKING("farmersdelight_cooking", "农夫乐事 · 烹饪锅", "烹饪锅", Category.FARMERS, 7, 1),
@@ -129,7 +134,7 @@ public enum RecipeType {
         return switch (this) {
             case CRAFTING_TABLE -> new String[]{"合成格（3×3）"};
             case INVENTORY -> new String[]{"合成格（2×2）"};
-            case FURNACE, BLAST_FURNACE, SMOKER -> new String[]{"原料"};
+            case FURNACE, BLAST_FURNACE, SMOKER, CAMPFIRE -> new String[]{"原料"};
             case SMITHING -> new String[]{"模板", "基础物品", "升级物品"};
             case FARMERS_COOKING -> new String[]{"材料", "材料", "材料", "材料", "材料", "材料", "容器"};
             case FARMERS_CUTTING -> new String[]{"材料", "工具"};
@@ -161,7 +166,11 @@ public enum RecipeType {
 
     /** 时间输入框上方那行说明 */
     public String timeFieldLabel() {
-        return isCreate() ? "处理时间（tick，默认 100）" : "烧制时间（tick，默认 200）";
+        if (isCreate()) {
+            return "处理时间（tick，默认 100）";
+        }
+        // 营火是 600，熔炉/高炉/烟熏炉是 200——默认值必须跟着类型说，不然玩家会以为写错了
+        return "烧制时间（tick，默认 " + defaultProcessingTime() + "）";
     }
 
     /** 产物是否带概率（只有切菜板有） */
@@ -184,9 +193,13 @@ public enum RecipeType {
         return this == FARMERS_CUTTING || isCreate();
     }
 
-    /** Create 处理配方：处理时间默认 100 tick，而不是原版烧炼的 200 */
+    /** 处理时间默认值：Create 100 tick、营火 600 tick、其余（熔炉等）200 tick */
     public int defaultProcessingTime() {
-        return this == CREATE_PROCESSING ? 100 : 200;
+        return switch (this) {
+            case CREATE_PROCESSING -> 100;
+            case CAMPFIRE -> 600;
+            default -> 200;
+        };
     }
 
     /** 需不需要「热度」这个参数（只有 Create 的处理配方有） */
@@ -215,6 +228,7 @@ public enum RecipeType {
             case FURNACE -> "smelting";
             case BLAST_FURNACE -> "blasting";
             case SMOKER -> "smoking";
+            case CAMPFIRE -> "campfireCooking";
             case SMITHING -> "smithing";
             case FARMERS_COOKING -> "cooking";
             case FARMERS_CUTTING -> "cutting";
@@ -268,16 +282,6 @@ public enum RecipeType {
     public static RecipeType firstOf(Group group) {
         for (RecipeType t : values()) {
             if (t.group() == group) {
-                return t;
-            }
-        }
-        return CRAFTING_TABLE;
-    }
-
-    /** 最前面的合成类型，切换类型时用来回退 */
-    public static RecipeType byId(String id) {
-        for (RecipeType t : values()) {
-            if (t.id.equals(id)) {
                 return t;
             }
         }

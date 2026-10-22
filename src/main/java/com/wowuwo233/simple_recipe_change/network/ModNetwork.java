@@ -12,6 +12,7 @@ import com.wowuwo233.simple_recipe_change.kubejs.RecipeType;
 import com.wowuwo233.simple_recipe_change.kubejs.RemoveBy;
 import com.wowuwo233.simple_recipe_change.menu.RecipeEditorMenu;
 import com.wowuwo233.simple_recipe_change.server.VanillaRecipeLookup;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -98,11 +99,12 @@ public final class ModNetwork {
                                          boolean mirrored, int typeOrdinal, int removeByOrdinal,
                                          double xp, int cookingTime, List<String> inputCells,
                                          List<RecipeDraft.ExtraOutput> extraOutputs,
-                                         int machineOrdinal, String heat, String note) {
+                                         int machineOrdinal, String heat, String note,
+                                         boolean carryNbt) {
         CHANNEL.sendToServer(new SaveRecipePacket(fileName, recipeId, shapeless, mirrored,
                 typeOrdinal, removeByOrdinal, xp, cookingTime, encodeCells(inputCells),
                 encodeExtraOutputs(extraOutputs), machineOrdinal, heat == null ? "" : heat,
-                note == null ? "" : note));
+                note == null ? "" : note, carryNbt));
     }
 
     /** 客户端请求重新加载资源（等同 /reload），让 KubeJS 立刻读到刚写好的脚本 */
@@ -265,6 +267,20 @@ public final class ModNetwork {
         return key == null ? null : key.toString();
     }
 
+    /**
+     * 产物格里的 SNBT（含花括号）；没有 NBT 时返回空串。
+     *
+     * <p>只能在服务端读：客户端发过来的只有物品 ID 与数量，NBT 拿不到；
+     * 而产物槽是真实槽位，服务端这边就是玩家放进去的那个 ItemStack。
+     */
+    private static String itemNbt(ItemStack stack) {
+        if (stack == null || stack.isEmpty()) {
+            return "";
+        }
+        CompoundTag tag = stack.getTag();
+        return tag == null || tag.isEmpty() ? "" : tag.toString();
+    }
+
     // ================================================================== 打开编辑器
 
     public record OpenEditorPacket() {
@@ -346,7 +362,9 @@ public final class ModNetwork {
                                    int typeOrdinal, int removeByOrdinal,
                                    double xp, int cookingTime, String inputCells,
                                    String extraOutputs, int machineOrdinal, String heat,
-                                   String note) {
+                                   String note,
+                                   /** 是否把产物格里的 NBT 写进脚本 */
+                                   boolean carryNbt) {
 
         public static void encode(SaveRecipePacket msg, FriendlyByteBuf buf) {
             buf.writeUtf(msg.fileName == null ? "" : msg.fileName, 256);
@@ -362,13 +380,14 @@ public final class ModNetwork {
             buf.writeVarInt(msg.machineOrdinal);
             buf.writeUtf(msg.heat == null ? "" : msg.heat, 64);
             buf.writeUtf(msg.note == null ? "" : msg.note, 512);
+            buf.writeBoolean(msg.carryNbt);
         }
 
         public static SaveRecipePacket decode(FriendlyByteBuf buf) {
             return new SaveRecipePacket(buf.readUtf(256), buf.readUtf(256),
                     buf.readBoolean(), buf.readBoolean(), buf.readVarInt(), buf.readVarInt(),
                     buf.readDouble(), buf.readVarInt(), buf.readUtf(2048), buf.readUtf(2048),
-                    buf.readVarInt(), buf.readUtf(64), buf.readUtf(512));
+                    buf.readVarInt(), buf.readUtf(64), buf.readUtf(512), buf.readBoolean());
         }
 
         public static void handle(SaveRecipePacket msg, Supplier<NetworkEvent.Context> ctxSupplier) {
@@ -412,7 +431,8 @@ public final class ModNetwork {
                         false,
                         msg.note());
 
-                KubeJsFileWriter.Result result = KubeJsFileWriter.save(draft, msg.fileName());
+                KubeJsFileWriter.Result result = KubeJsFileWriter.save(draft, msg.fileName(),
+                        msg.carryNbt() ? itemNbt(outputStack) : "");
                 sendSaveResult(player, result.ok(), result.message(), result.path());
             });
             ctx.setPacketHandled(true);
@@ -531,7 +551,16 @@ public final class ModNetwork {
 
     // ================================================================== 重载
 
-    /** 重新加载资源，等同 /reload；由服务端直接执行，不依赖玩家是否有 OP 权限 */
+    /**
+     * 重新加载资源，等同 {@code /reload}。
+     *
+     * <p><b>要求 OP 等级 2</b>（单人游戏直接放行）。这条限制是刻意的：
+     * {@code server.reloadResources(...)} 会重建全部数据包与配方，一次就是几百毫秒的
+     * 服务端停顿，若任何玩家都能触发，几个人连点就能把服务器卡住。
+     *
+     * <p>被拒时会回一句聊天提示，不再静默失败——之前注释写着「不依赖 OP」，
+     * 实现里却调了 {@link #canWrite}，玩家点了没反应也看不出原因。
+     */
     public record ReloadPacket() {
         public static void encode(ReloadPacket msg, FriendlyByteBuf buf) {
         }
@@ -544,7 +573,12 @@ public final class ModNetwork {
             NetworkEvent.Context ctx = ctxSupplier.get();
             ctx.enqueueWork(() -> {
                 ServerPlayer player = ctx.getSender();
-                if (player == null || !canWrite(player)) {
+                if (player == null) {
+                    return;
+                }
+                if (!canWrite(player)) {
+                    player.displayClientMessage(
+                            Component.literal("[简易配方修改] 重载需要管理员权限（OP 等级 2）"), false);
                     return;
                 }
                 MinecraftServer server = player.getServer();

@@ -18,6 +18,7 @@ public class WriterCheck {
         shapedMirroredOn();
         shapelessDandelion();
         inventory2x2();
+        typeChangeReflow();
         patternTrimmingAndLetterReuse();
         recipeIdNormalization();
         fileNameNormalization();
@@ -31,6 +32,7 @@ public class WriterCheck {
         smithingRecipe();
         farmersDelight();
         createProcessing();
+        outputNbt();
 
         System.out.println();
         if (failures == 0) {
@@ -115,6 +117,62 @@ public class WriterCheck {
         check("忽略 2x2 之外的格子", !call.contains("DIAMOND_BLOCK_SHOULD_BE_IGNORED"));
         check("图案是 2x2", call.contains("'AA'"));
         check("产物 3x", call.contains("'3x minecraft:ladder'"));
+    }
+
+    static void typeChangeReflow() {
+        // cells 是按「当前类型的宽度」行优先排布的：3×3 的左上 2×2 是下标 0、1、3、4。
+        // 换成 2×2 之后必须重排成 0、1、2、3，否则第 2 行会被错读成第 1 行的后两格。
+        List<String> cells = blank(9);
+        cells.set(0, "minecraft:oak_planks");
+        cells.set(1, "minecraft:oak_planks");
+        cells.set(3, "minecraft:oak_planks");
+        cells.set(4, "minecraft:stick");
+        RecipeDraft draft = new RecipeDraft(RecipeType.CRAFTING_TABLE, false, true, "",
+                cells, "minecraft:crafting_table", 1).withType(RecipeType.INVENTORY);
+        section("切换类型时格子重排（3×3 → 2×2）");
+        check("换 2×2 后只剩 4 格", draft.cells().size() == 4);
+        check("左上角保留", "minecraft:oak_planks".equals(draft.cell(0, 0)));
+        check("第 2 行不错位", "minecraft:stick".equals(draft.cell(1, 1)));
+    }
+
+    static void outputNbt() {
+        List<String> cells = blank(9);
+        cells.set(0, "minecraft:nether_wart");
+        RecipeDraft base = new RecipeDraft(RecipeType.CRAFTING_TABLE, false, true, "",
+                cells, "minecraft:potion", 1);
+
+        String nbt = "{Potion:\"minecraft:healing\"}";
+        section("产物 NBT");
+        String call = KubeJsWriter.renderRecipeCall(base, "simple_recipe_change", nbt);
+        System.out.println(call);
+        check("单个产物带 NBT", call.contains("'minecraft:potion {Potion:\"minecraft:healing\"}'"));
+        check("ID 与花括号之间必须有空格", call.contains("minecraft:potion {"));
+
+        String multi = KubeJsWriter.renderRecipeCall(
+                base.withOutput("minecraft:potion", 3), "simple_recipe_change", nbt);
+        check("数量前缀写在 NBT 之前", multi.contains("'3x minecraft:potion {Potion:\"minecraft:healing\"}'"));
+
+        String plain = KubeJsWriter.renderRecipeCall(base, "simple_recipe_change");
+        check("没有 NBT 时保持原样", plain.contains("'minecraft:potion'"));
+
+        String quoted = KubeJsWriter.renderRecipeCall(base, "simple_recipe_change",
+                "{display:{Name:\"Bob's sword\"}}");
+        check("NBT 里的单引号被转义", quoted.contains("Bob\\'s sword"));
+
+        // 真实场景：附魔 + JSON 文本名称。CompoundTag.toString() 会把含双引号的字符串
+        // 用单引号包起来，所以生成的 JS 里必然出现 \' —— 必须仍然能还原成合法 SNBT。
+        String real = "{Enchantments:[{id:\"minecraft:sharpness\",lvl:5s}],"
+                + "display:{Name:'{\"text\":\"Sharp\"}'}}";
+        String sword = KubeJsWriter.renderRecipeCall(
+                base.withOutput("minecraft:diamond_sword", 1), "simple_recipe_change", real);
+        check("JSON 名称的引号被转义", sword.contains("Name:\\'{\"text\":\"Sharp\"}\\'"));
+        check("附魔 SNBT 原样保留", sword.contains("Enchantments:[{id:\"minecraft:sharpness\",lvl:5s}]"));
+
+        List<String> modify = KubeJsWriter.renderCalls(
+                base.withOperation(Operation.MODIFY).withSourceRecipeId("minecraft:potion"),
+                "simple_recipe_change", nbt);
+        check("修改模式：先删后加共两条", modify.size() == 2);
+        check("修改模式的第二条也带 NBT", modify.get(1).contains("minecraft:potion {Potion:"));
     }
 
     static void patternTrimmingAndLetterReuse() {
@@ -281,7 +339,7 @@ public class WriterCheck {
     }
 
     static void cookingRecipes() {
-        section("烧炼配方：熔炉 / 高炉 / 烟熏炉");
+        section("烧炼配方：熔炉 / 高炉 / 烟熏炉 / 营火");
         List<String> cells = blank(9);
         cells.set(0, "minecraft:sand");
         RecipeDraft base = new RecipeDraft(RecipeType.FURNACE, false, true,
@@ -305,6 +363,19 @@ public class WriterCheck {
                 .renderRecipeCall(base.withType(RecipeType.BLAST_FURNACE), "x").contains("event.blasting("));
         check("烟熏炉用 event.smoking", KubeJsWriter
                 .renderRecipeCall(base.withType(RecipeType.SMOKER), "x").contains("event.smoking("));
+
+        // 营火：方法名不同，默认时间也不同（600 而不是 200），不能沿用熔炉那套判断
+        List<String> beef = blank(9);
+        beef.set(0, "minecraft:beef");
+        RecipeDraft campfire = new RecipeDraft(RecipeType.CAMPFIRE, false, true,
+                "simple_recipe_change:cooked_beef", beef, "minecraft:cooked_beef", 1,
+                Operation.ADD, RemoveBy.OUTPUT);
+        String camp = KubeJsWriter.renderRecipeCall(campfire, "simple_recipe_change");
+        System.out.println(camp);
+        check("营火用 event.campfireCooking", camp.contains("event.campfireCooking("));
+        check("营火默认 600 tick 不写出", !camp.contains(".cookingTime("));
+        check("营火改 300 tick 会写出", KubeJsWriter
+                .renderRecipeCall(campfire.withCookingTime(300), "x").contains(".cookingTime(300)"));
 
         RecipeDraft noInput = new RecipeDraft(RecipeType.FURNACE, false, true, "",
                 blank(9), "minecraft:glass", 1);

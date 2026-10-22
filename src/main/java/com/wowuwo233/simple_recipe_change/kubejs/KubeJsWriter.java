@@ -94,6 +94,16 @@ public final class KubeJsWriter {
      * @throws IllegalArgumentException 草稿不完整时抛出，消息为中文，可直接展示给用户
      */
     public static String renderRecipeCall(RecipeDraft draft, String fallbackNamespace) {
+        return renderRecipeCall(draft, fallbackNamespace, "");
+    }
+
+    /**
+     * 渲染单个配方，{@code outputNbt} 是产物格的 SNBT（没有就传空串）。
+     *
+     * <p>产物 NBT 单独传参而不是塞进 {@link RecipeDraft}，是因为草稿只描述「配方结构」，
+     * 而 NBT 来自产物格里的真实 ItemStack，只有服务端保存那一刻才拿得到。
+     */
+    public static String renderRecipeCall(RecipeDraft draft, String fallbackNamespace, String outputNbt) {
         // 删除操作走 event.remove，不需要输入槽
         if (draft.operation() == Operation.REMOVE) {
             return renderRemoveCall(draft);
@@ -109,7 +119,7 @@ public final class KubeJsWriter {
         }
 
         String recipeId = normalizeRecipeId(d.recipeId(), fallbackNamespace, d.outputItem());
-        String output = quoteOutput(d.outputItem(), d.outputCount());
+        String output = quoteOutput(d.outputItem(), d.outputCount(), outputNbt);
 
         StringBuilder sb = new StringBuilder();
 
@@ -173,7 +183,8 @@ public final class KubeJsWriter {
         if (d.xp() > 0D) {
             sb.append(".xp(").append(formatNumber(d.xp())).append(")");
         }
-        if (d.cookingTime() != RecipeDraft.DEFAULT_COOKING_TIME) {
+        // 默认值随类型走：营火 600、熔炉 200、机械动力 100。等于默认值就不写出来
+        if (d.cookingTime() != d.type().defaultProcessingTime()) {
             sb.append(".cookingTime(").append(d.cookingTime()).append(")");
         }
     }
@@ -450,9 +461,50 @@ public final class KubeJsWriter {
         sb.append(")");
     }
 
-    /** KubeJS 约定：数量 1 直接写物品 ID，大于 1 写 {@code '4x minecraft:torch'} */
+    /**
+     * KubeJS 约定：数量 1 直接写物品 ID，大于 1 写 {@code '4x minecraft:torch'}。
+     *
+     * <p>带 NBT 时写成 {@code '1x minecraft:potion {Potion:"minecraft:healing"}'}。
+     * <b>物品 ID 与花括号之间那个空格不能省</b>：KubeJS 的 {@code ItemStackJS.parse(String)}
+     * 用<b>第一个空格</b>切出物品 ID，剩下的部分只有以 {@code &#123;} 开头才会被当成 SNBT
+     * （内部走 {@code NBTUtils.toTagCompound} → {@code TagParser.parseTag}）。
+     * 写成 {@code 'minecraft:potion&#123;...&#125;'} 会让整个字符串被当成物品 ID，直接报错。
+     */
+    static String quoteOutput(String item, int count, String nbt) {
+        StringBuilder sb = new StringBuilder();
+        if (count > 1) {
+            sb.append(count).append("x ");
+        }
+        sb.append(item);
+        if (nbt != null && !nbt.isBlank()) {
+            sb.append(' ').append(nbt.trim());
+        }
+        return "'" + escapeJs(sb.toString()) + "'";
+    }
+
     static String quoteOutput(String item, int count) {
-        return count > 1 ? "'" + count + "x " + item + "'" : "'" + item + "'";
+        return quoteOutput(item, count, "");
+    }
+
+    /**
+     * JS 单引号字符串转义。
+     *
+     * <p>NBT 是玩家可控的（自定义名称、书的文本），里面完全可能有单引号或反斜杠；
+     * 不转义会把生成的 .js 变成语法错误，导致整个脚本文件加载失败。
+     */
+    static String escapeJs(String raw) {
+        StringBuilder sb = new StringBuilder(raw.length() + 8);
+        for (int i = 0; i < raw.length(); i++) {
+            char c = raw.charAt(i);
+            switch (c) {
+                case '\\' -> sb.append("\\\\");
+                case '\'' -> sb.append("\\'");
+                case '\n' -> sb.append("\\n");
+                case '\r' -> sb.append("\\r");
+                default -> sb.append(c);
+            }
+        }
+        return sb.toString();
     }
 
     // ---------------------------------------------------------------- 删除配方
@@ -536,6 +588,11 @@ public final class KubeJsWriter {
      * <p>「修改配方」时第一条是先删除原配方，其余情况就只有一条。
      */
     public static List<String> renderCalls(RecipeDraft draft, String fallbackNamespace) {
+        return renderCalls(draft, fallbackNamespace, "");
+    }
+
+    /** 同上，额外带上产物的 SNBT */
+    public static List<String> renderCalls(RecipeDraft draft, String fallbackNamespace, String outputNbt) {
         List<String> calls = new ArrayList<>();
         if (draft.operation() == Operation.MODIFY) {
             String source = draft.sourceRecipeId();
@@ -543,7 +600,7 @@ public final class KubeJsWriter {
                 calls.add("event.remove({ id: '" + normalizeRemoveId(source) + "' })");
             }
         }
-        calls.add(renderRecipeCall(draft, fallbackNamespace));
+        calls.add(renderRecipeCall(draft, fallbackNamespace, outputNbt));
         return calls;
     }
 

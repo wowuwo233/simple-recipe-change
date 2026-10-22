@@ -25,6 +25,8 @@ public record RecipeIndexEntry(
         String sourceRecipeId,
         String outputItem,
         int outputCount,
+        /** 产物的 SNBT（含花括号），没有 NBT 时是空串 */
+        String outputNbt,
         List<String> cells,
         double xp,
         int cookingTime,
@@ -52,6 +54,9 @@ public record RecipeIndexEntry(
         if (outputItem == null) {
             outputItem = "";
         }
+        if (outputNbt == null) {
+            outputNbt = "";
+        }
         if (recipeId == null) {
             recipeId = "";
         }
@@ -59,7 +64,8 @@ public record RecipeIndexEntry(
             sourceRecipeId = "";
         }
         if (cookingTime <= 0) {
-            cookingTime = RecipeDraft.DEFAULT_COOKING_TIME;
+            // 默认值随类型走：营火 600、熔炉 200、机械动力 100
+            cookingTime = type == null ? RecipeDraft.DEFAULT_COOKING_TIME : type.defaultProcessingTime();
         }
     }
 
@@ -68,31 +74,21 @@ public record RecipeIndexEntry(
                             boolean shapeless, boolean mirrored, String recipeId, String sourceRecipeId,
                             String outputItem, int outputCount, List<String> cells) {
         this(blockId, fileName, operation, type, shapeless, mirrored, recipeId, sourceRecipeId,
-                outputItem, outputCount, cells, 0D, 0, List.of(), CreateMachine.CRUSHING, "", "");
+                outputItem, outputCount, "", cells, 0D, 0, List.of(), CreateMachine.CRUSHING, "", "");
     }
 
-    public static RecipeIndexEntry fromDraft(String blockId, String fileName, RecipeDraft draft) {
+    public static RecipeIndexEntry fromDraft(String blockId, String fileName, RecipeDraft draft,
+                                             String outputNbt) {
         List<String> cells = new ArrayList<>(draft.cells());
         while (cells.size() < 9) {
             cells.add(null);
         }
         return new RecipeIndexEntry(blockId, fileName, draft.operation(), draft.type(),
                 draft.shapeless(), draft.mirrored(), draft.recipeId(), draft.sourceRecipeId(),
-                draft.outputItem() == null ? "" : draft.outputItem(), draft.outputCount(), cells,
+                draft.outputItem() == null ? "" : draft.outputItem(), draft.outputCount(),
+                outputNbt == null ? "" : outputNbt, cells,
                 draft.xp(), draft.cookingTime(), draft.extraOutputs(),
                 draft.machine(), draft.heat(), draft.note());
-    }
-
-    /** 还原成编辑器用的草稿 */
-    public RecipeDraft toDraft() {
-        List<String> copy = new ArrayList<>(cells);
-        while (copy.size() < 9) {
-            copy.add(null);
-        }
-        return new RecipeDraft(type, shapeless, mirrored, recipeId, copy,
-                outputItem.isBlank() ? null : outputItem, outputCount, operation, RemoveBy.OUTPUT,
-                sourceRecipeId, xp, cookingTime, extraOutputs, "",
-                machine, heat, false, note);
     }
 
     public JsonObject toJson() {
@@ -107,6 +103,7 @@ public record RecipeIndexEntry(
         o.addProperty("sourceRecipeId", sourceRecipeId);
         o.addProperty("output", outputItem);
         o.addProperty("outputCount", outputCount);
+        o.addProperty("outputNbt", outputNbt);
         o.addProperty("xp", xp);
         o.addProperty("cookingTime", cookingTime);
         o.addProperty("machine", machine.name());
@@ -174,6 +171,7 @@ public record RecipeIndexEntry(
                 str(o, "sourceRecipeId"),
                 str(o, "output"),
                 o.has("outputCount") ? o.get("outputCount").getAsInt() : 0,
+                str(o, "outputNbt"),
                 cells,
                 o.has("xp") ? o.get("xp").getAsDouble() : 0D,
                 o.has("cookingTime") ? o.get("cookingTime").getAsInt() : RecipeDraft.DEFAULT_COOKING_TIME,

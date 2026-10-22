@@ -6,7 +6,6 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import com.google.gson.JsonPrimitive;
 import net.minecraftforge.fml.loading.FMLPaths;
 
 import java.nio.charset.StandardCharsets;
@@ -61,7 +60,12 @@ public final class RecipeIndex {
         return out;
     }
 
-    private static void save(List<RecipeIndexEntry> entries) {
+    /**
+     * 写回索引文件。
+     *
+     * @return 是否因为超过 {@link #MAX_ENTRIES} 而丢弃了最旧的记录
+     */
+    private static boolean save(List<RecipeIndexEntry> entries) {
         try {
             Path path = indexPath();
             Files.createDirectories(path.getParent());
@@ -74,17 +78,27 @@ public final class RecipeIndex {
             }
             root.add("entries", arr);
             Files.writeString(path, GSON.toJson(root), StandardCharsets.UTF_8);
+            return entries.size() > limit;
         } catch (Exception e) {
             // 索引写失败不该让保存流程失败
+            return false;
         }
     }
 
-    /** 新增或按 blockId 覆盖一条记录 */
-    public static void upsert(RecipeIndexEntry entry) {
+    /**
+     * 新增或按 blockId 覆盖一条记录。
+     *
+     * <p>新记录插在最前面，所以触顶时被挤掉的是<b>最旧</b>的一条——那条配方的
+     * .js 脚本仍然存在、仍然生效，只是「我的配方」列表里看不到它了。
+     * 调用方需要把这件事告诉玩家，否则就是静默丢数据。
+     *
+     * @return 是否因为达到 {@link #MAX_ENTRIES} 上限而丢弃了一条旧记录
+     */
+    public static boolean upsert(RecipeIndexEntry entry) {
         List<RecipeIndexEntry> entries = load();
         entries.removeIf(e -> e.blockId().equals(entry.blockId()));
         entries.add(0, entry);
-        save(entries);
+        return save(entries);
     }
 
     public static void remove(String blockId) {
@@ -130,36 +144,5 @@ public final class RecipeIndex {
             // 解析失败按空列表处理
         }
         return out;
-    }
-
-    /** 供网络包传输的单个记录 */
-    public static String toJson(RecipeIndexEntry entry) {
-        return entry == null ? "" : GSON.toJson(entry.toJson());
-    }
-
-    public static RecipeIndexEntry parseJson(String json) {
-        if (json == null || json.isBlank()) {
-            return null;
-        }
-        try {
-            JsonElement root = JsonParser.parseString(json);
-            return root != null && root.isJsonObject() ? RecipeIndexEntry.fromJson(root.getAsJsonObject()) : null;
-        } catch (Exception e) {
-            return null;
-        }
-    }
-
-    /** 便于在界面上显示：从物品 ID 取末段作为名字 */
-    public static String shortName(String itemId) {
-        if (itemId == null || itemId.isBlank()) {
-            return "（无产物）";
-        }
-        int colon = itemId.indexOf(':');
-        String path = colon >= 0 ? itemId.substring(colon + 1) : itemId;
-        return path.replace('_', ' ');
-    }
-
-    static JsonPrimitive prim(String s) {
-        return new JsonPrimitive(s);
     }
 }

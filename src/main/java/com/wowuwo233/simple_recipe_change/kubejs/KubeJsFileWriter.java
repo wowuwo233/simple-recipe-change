@@ -36,9 +36,19 @@ public final class KubeJsFileWriter {
     }
 
     public static Result save(RecipeDraft draft, String requestedFileName) {
+        return save(draft, requestedFileName, "");
+    }
+
+    /**
+     * 保存配方。
+     *
+     * @param outputNbt 产物格的 SNBT（含花括号）；没有 NBT 时传空串。
+     *                  由服务端从产物槽里的真实 ItemStack 取，客户端传不了这个。
+     */
+    public static Result save(RecipeDraft draft, String requestedFileName, String outputNbt) {
         try {
             // 这几步都可能抛出带中文说明的 IllegalArgumentException，交给下面统一处理
-            List<String> calls = KubeJsWriter.renderCalls(draft, SimpleRecipeChangeMod.MODID);
+            List<String> calls = KubeJsWriter.renderCalls(draft, SimpleRecipeChangeMod.MODID, outputNbt);
             String blockId = KubeJsWriter.blockIdFor(draft, SimpleRecipeChangeMod.MODID);
             String block = KubeJsWriter.renderBlock(blockId, calls);
 
@@ -56,12 +66,17 @@ public final class KubeJsFileWriter {
 
             Files.writeString(file, KubeJsWriter.upsert(existing, blockId, block), StandardCharsets.UTF_8);
 
-            RecipeIndexEntry entry = RecipeIndexEntry.fromDraft(blockId, fileName, draft);
-            RecipeIndex.upsert(entry);
+            RecipeIndexEntry entry = RecipeIndexEntry.fromDraft(blockId, fileName, draft, outputNbt);
+            boolean indexDropped = RecipeIndex.upsert(entry);
 
             String message = draft.operation().label() + "：已写入 " + fileName + "\n标识：" + blockId;
             if (!kubeJsInstalled) {
                 message += "\n注意：未检测到 kubejs 目录，安装 KubeJS 后该文件才会生效";
+            }
+            if (indexDropped) {
+                // 脚本已经写进去了，只是索引放不下——必须说出来，否则「我的配方」会莫名少一条
+                message += "\n注意：索引已达 " + RecipeIndex.MAX_ENTRIES
+                        + " 条上限，最旧的一条已从「我的配方」移出（它的 .js 脚本仍然有效）";
             }
             return new Result(true, message, file.toString(), entry);
         } catch (IllegalArgumentException e) {

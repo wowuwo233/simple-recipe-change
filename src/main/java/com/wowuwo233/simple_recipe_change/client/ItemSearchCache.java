@@ -67,24 +67,4 @@ public final class ItemSearchCache {
         }
         return list;
     }
-
-    /** 玩家背包里该物品的数量，用于在列表里标注 */
-    public static int countInInventory(String itemId) {
-        Player player = Minecraft.getInstance().player;
-        if (player == null || itemId == null) {
-            return 0;
-        }
-        int total = 0;
-        var inventory = player.getInventory();
-        for (int i = 0; i < inventory.getContainerSize(); i++) {
-            ItemStack stack = inventory.getItem(i);
-            if (stack.isEmpty()) {
-                continue;
-            }
-            if (itemId.equals(ForgeRegistries.ITEMS.getKey(stack.getItem()).toString())) {
-                total += stack.getCount();
-            }
-        }
-        return total;
-    }
 }

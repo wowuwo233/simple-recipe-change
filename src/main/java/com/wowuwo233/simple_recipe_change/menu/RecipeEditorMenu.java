@@ -9,6 +9,8 @@ import com.wowuwo233.simple_recipe_change.server.VanillaRecipeLookup;
 import net.minecraft.core.Holder;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.TagParser;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.tags.TagKey;
@@ -52,13 +54,18 @@ public class RecipeEditorMenu extends AbstractContainerMenu {
      * 窗口高度。
      *
      * <p>原本是 346（刚好放下搜索框 + 内容 + 控件 + 背包）。序列组装的界面要求
-     * 每步摆「机器按钮 + 原料格 + 废品格/概率」三行，346 根本塞不下，所以整体加高到 400。
+     * 每步摆「机器按钮 + 原料格 + 废品格/概率」三行，346 根本塞不下，所以整体加高。
+     *
+     * <p>现在定在 <b>370</b>，上限是算出来的：1080p 下 GUI 缩放 3 只有 360 的可用高度
+     * （1080/3），窗口一旦超过 360 就会上下各裁掉一截——最直观的现象就是玩家背包的
+     * 快捷栏被切掉一半。原来的 388 就踩了这个坑，把底部状态栏那 16px 让出来之后
+     * 刚好压到 370，快捷栏能完整露出来。
      *
      * <p>做成<b>所有类型共用</b>而不是按类型变：窗口高度变了就得重建控件
      * （{@code leftPos}/{@code topPos} 是 init 时算的），切换类型时重建会带出
      * 一堆状态重置的坑；共用一套坐标最省事，代价只是别的类型下方多留了点空。
      */
-    public static final int IMAGE_HEIGHT = 388;
+    public static final int IMAGE_HEIGHT = 370;
     public static final int SLOT_SIZE = 18;
 
     /** 合成类：3×3 网格的行位置 */
@@ -136,10 +143,15 @@ public class RecipeEditorMenu extends AbstractContainerMenu {
     public static final int TAG_BUTTON_Y = 268;
     public static final int TAG_BUTTON_W = 60;
 
-    /** 玩家背包 */
+    /**
+     * 玩家背包。
+     *
+     * <p>整块上移了 12px：底部状态栏挪到标题栏右侧之后，这里就不用再给状态文字留位置，
+     * 背包跟着提上来，窗口高度才收得到 370。
+     */
     public static final int PLAYER_X = 89;
-    public static final int PLAYER_Y = 304;
-    public static final int HOTBAR_Y = 362;
+    public static final int PLAYER_Y = 292;
+    public static final int HOTBAR_Y = 348;
 
     /** 背包的实际 y（序列组装要往下让） */
     public int playerY() {
@@ -502,7 +514,7 @@ public class RecipeEditorMenu extends AbstractContainerMenu {
         this.lastFound = null;
         layoutSlots(false);
 
-        this.output.setItem(0, stackOf(entry.outputItem()));
+        this.output.setItem(0, stackOf(entry.outputItem(), entry.outputNbt()));
         if (!entry.outputItem().isBlank()) {
             ItemStack out = this.output.getItem(0);
             if (!out.isEmpty()) {
@@ -546,6 +558,26 @@ public class RecipeEditorMenu extends AbstractContainerMenu {
         ResourceLocation key = ResourceLocation.tryParse(id);
         Item item = key == null ? null : ForgeRegistries.ITEMS.getValue(key);
         return item == null ? ItemStack.EMPTY : new ItemStack(item);
+    }
+
+    /**
+     * 同上，并把 SNBT 套到物品上。
+     *
+     * <p>「我的配方」载入时必须走这个重载：产物槽是真实槽位，载入时得把附魔、药水效果、
+     * 自定义名称这些 NBT 一起放回去，否则再保存一次就把标签弄丢了。
+     */
+    public static ItemStack stackOf(String id, String nbt) {
+        ItemStack stack = stackOf(id);
+        if (stack.isEmpty() || nbt == null || nbt.isBlank()) {
+            return stack;
+        }
+        try {
+            CompoundTag tag = TagParser.parseTag(nbt);
+            stack.setTag(tag);
+        } catch (Exception ignored) {
+            // 索引里的 SNBT 坏了就退回白板物品——总比整个界面打不开好
+        }
+        return stack;
     }
 
     // ------------------------------------------------------------------ 基础
