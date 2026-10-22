@@ -49,7 +49,7 @@ public class RecipeEditorMenu extends AbstractContainerMenu {
     // ---------------------------------------------------------- 界面布局常量
     // 槽位坐标相对屏幕左上角 (leftPos, topPos)。
 
-    public static final int IMAGE_WIDTH = 340;
+    public static final int IMAGE_WIDTH = 420;
     /**
      * 窗口高度。
      *
@@ -65,7 +65,7 @@ public class RecipeEditorMenu extends AbstractContainerMenu {
      * （{@code leftPos}/{@code topPos} 是 init 时算的），切换类型时重建会带出
      * 一堆状态重置的坑；共用一套坐标最省事，代价只是别的类型下方多留了点空。
      */
-    public static final int IMAGE_HEIGHT = 370;
+    public static final int IMAGE_HEIGHT = 420;
     public static final int SLOT_SIZE = 18;
 
     /** 合成类：3×3 网格的行位置 */
@@ -167,9 +167,9 @@ public class RecipeEditorMenu extends AbstractContainerMenu {
     public static final int EXTRA_SLOT_X0 = 12;
     public static final int EXTRA_SLOT_STEP = 80;
 
-    /** 「物品用标签」开关的位置（在下面那排按钮的最右边） */    public static final int TAG_BUTTON_X = 268;
+    /** 「物品用标签」开关的位置（在下面那排按钮的最右边） */    public static final int TAG_BUTTON_X = 312;
     public static final int TAG_BUTTON_Y = 268;
-    public static final int TAG_BUTTON_W = 60;
+    public static final int TAG_BUTTON_W = 96;
 
     /**
      * 玩家背包。
@@ -177,9 +177,9 @@ public class RecipeEditorMenu extends AbstractContainerMenu {
      * <p>整块上移了 12px：底部状态栏挪到标题栏右侧之后，这里就不用再给状态文字留位置，
      * 背包跟着提上来，窗口高度才收得到 370。
      */
-    public static final int PLAYER_X = 89;
-    public static final int PLAYER_Y = 292;
-    public static final int HOTBAR_Y = 348;
+    public static final int PLAYER_X = 129;
+    public static final int PLAYER_Y = 342;
+    public static final int HOTBAR_Y = 398;
 
     /** 背包的实际 y（序列组装要往下让） */
     public int playerY() {

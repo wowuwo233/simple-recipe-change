@@ -296,12 +296,12 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
         this.clearWidgets();
 
         Operation[] modes = {Operation.ADD, Operation.MODIFY, Operation.REMOVE};
-        int[] modeX = {10, 74, 138};
+        int[] modeX = {10, 90, 170};
         for (int i = 0; i < modes.length; i++) {
             final Operation mode = modes[i];
             modeButtons[i] = this.addRenderableWidget(Button.builder(
                             Component.literal(mode.label()), b -> switchMode(mode))
-                    .bounds(this.leftPos + modeX[i], this.topPos + MODE_Y, 60, 20)
+                    .bounds(this.leftPos + modeX[i], this.topPos + MODE_Y, 76, 20)
                     .build());
         }
 
@@ -311,7 +311,7 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
                         this.minecraft.setScreen(new RecipeListScreen(this));
                     }
                 })
-                .bounds(this.leftPos + 202, this.topPos + MODE_Y, 66, 20)
+                .bounds(this.leftPos + 250, this.topPos + MODE_Y, 76, 20)
                 .build());
 
         // 全界面唯一的重载入口。底栏原本还有一个文案与行为完全相同的「重载脚本」，
@@ -320,7 +320,7 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
                     ModNetwork.requestReload();
                     setStatus(true, "已请求重载，KubeJS 会重新读取脚本");
                 })
-                .bounds(this.leftPos + 272, this.topPos + MODE_Y, 58, 20)
+                .bounds(this.leftPos + 330, this.topPos + MODE_Y, 76, 20)
                 .build());
 
         String previous = this.searchField == null ? "" : this.searchField.getValue();
@@ -338,12 +338,12 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
 
         this.secondaryButton = this.addRenderableWidget(Button.builder(
                         Component.literal(secondaryLabel()), b -> cycleSecondary())
-                .bounds(this.leftPos + 12, this.topPos + CONTROLS_Y, 76, 20)
+                .bounds(this.leftPos + 12, this.topPos + CONTROLS_Y, 96, 20)
                 .build());
 
         this.groupButton = this.addRenderableWidget(Button.builder(
                         Component.literal(groupLabel()), b -> cycleGroup())
-                .bounds(this.leftPos + 92, this.topPos + CONTROLS_Y, 76, 20)
+                .bounds(this.leftPos + 112, this.topPos + CONTROLS_Y, 96, 20)
                 .build());
 
         this.shapelessButton = this.addRenderableWidget(Button.builder(
@@ -355,7 +355,7 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
                             }
                             refreshButtonStates();
                         })
-                .bounds(this.leftPos + 172, this.topPos + CONTROLS_Y, 92, 20)
+                .bounds(this.leftPos + 212, this.topPos + CONTROLS_Y, 96, 20)
                 .build());
 
         this.mirrorButton = this.addRenderableWidget(Button.builder(
@@ -367,7 +367,7 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
                             }
                             refreshButtonStates();
                         })
-                .bounds(this.leftPos + 268, this.topPos + CONTROLS_Y, 60, 20)
+                .bounds(this.leftPos + 312, this.topPos + CONTROLS_Y, 96, 20)
                 .build());
 
         // 烧炼专用的经验与时间
@@ -391,20 +391,20 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
 
         // 备注：写进脚本时变成 // 注释，放在配方上方
         String noteText = this.noteField == null ? "" : this.noteField.getValue();
-        this.noteField = new EditBox(this.font, this.leftPos + 12, this.topPos + NOTE_Y, 316, 18,
+        this.noteField = new EditBox(this.font, this.leftPos + 12, this.topPos + NOTE_Y, 396, 18,
                 Component.literal("备注"));
         this.noteField.setMaxLength(200);
         this.noteField.setValue(noteText);
         this.noteField.setHint(Component.literal("备注（会写成脚本里的 // 注释，可留空）"));
         this.addRenderableWidget(this.noteField);
 
-        this.idField = new EditBox(this.font, this.leftPos + 12, this.topPos + FIELD_Y, 152, 18,
+        this.idField = new EditBox(this.font, this.leftPos + 12, this.topPos + FIELD_Y, 232, 18,
                 Component.literal("配方名"));
         this.idField.setMaxLength(200);
         this.idField.setHint(Component.literal("留空自动生成"));
         this.addRenderableWidget(this.idField);
 
-        this.fileField = new EditBox(this.font, this.leftPos + 176, this.topPos + FIELD_Y, 152, 18,
+        this.fileField = new EditBox(this.font, this.leftPos + 176, this.topPos + FIELD_Y, 232, 18,
                 Component.literal("文件名"));
         this.fileField.setMaxLength(120);
         this.fileField.setValue(KubeJsWriter.DEFAULT_FILE_NAME);
@@ -441,7 +441,7 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
                             this.carryOutputNbt = !this.carryOutputNbt;
                             refreshButtonStates();
                         })
-                .bounds(this.leftPos + 188, this.topPos + BUTTONS_Y, 76, 20)
+                .bounds(this.leftPos + 212, this.topPos + BUTTONS_Y, 96, 20)
                 .build());
         this.outputNbtButton.setTooltip(Tooltip.create(Component.literal(
                 "产物带 NBT（附魔 / 药水 / 自定义名称）时，是否把这些标签写进脚本。\n"
@@ -470,7 +470,7 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
                                     % RecipeEditorMenu.SEQ_STEP_COUNT + 1;
                             applySeqStepCount();
                         })
-                .bounds(this.leftPos + 172, this.topPos + CONTROLS_Y, 92, 20)
+                .bounds(this.leftPos + 212, this.topPos + CONTROLS_Y, 96, 20)
                 .build());
 
         // 控件都建好之后再统一摆一次位置与可见性：
@@ -479,7 +479,7 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
         updateWidgetVisibility();
 
         this.saveButton = this.addRenderableWidget(Button.builder(Component.literal("保存并写入"), b -> save())
-                .bounds(this.leftPos + 12, this.topPos + BUTTONS_Y, 84, 20)
+                .bounds(this.leftPos + 12, this.topPos + BUTTONS_Y, 96, 20)
                 .build());
 
         this.clearButton = this.addRenderableWidget(Button.builder(Component.literal("清空编辑区"), b -> {
@@ -487,7 +487,7 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
                     this.inputItems = blankInputs();
                     setStatus(true, "已清空编辑区");
                 })
-                .bounds(this.leftPos + 100, this.topPos + BUTTONS_Y, 84, 20)
+                .bounds(this.leftPos + 112, this.topPos + BUTTONS_Y, 96, 20)
                 .build());
 
         applySlotLayout();
@@ -1019,7 +1019,7 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
     }
 
     private int overlayLeft() {
-        return this.leftPos + OVERLAY_X;
+        return this.leftPos + (RecipeEditorMenu.IMAGE_WIDTH - OVERLAY_W) / 2;
     }
 
     private int overlayTop() {
