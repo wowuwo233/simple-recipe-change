@@ -168,7 +168,7 @@ public class RecipeEditorMenu extends AbstractContainerMenu {
     public static final int EXTRA_SLOT_STEP = 80;
 
     /** 「物品用标签」开关的位置（在下面那排按钮的最右边） */    public static final int TAG_BUTTON_X = 374;
-    public static final int TAG_BUTTON_Y = 262;
+    public static final int TAG_BUTTON_Y = 270;
     public static final int TAG_BUTTON_W = 96;
 
     /**

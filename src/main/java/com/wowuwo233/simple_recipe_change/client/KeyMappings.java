@@ -17,6 +17,16 @@ public final class KeyMappings {
             GLFW.GLFW_KEY_G,
             CATEGORY);
 
+    /**
+     * 编辑器打开时，把鼠标下（JEI 物品列表 / 书签栏）的物品放进第一个空格。
+     */
+    public static final KeyMapping PICK_FROM_JEI = new KeyMapping(
+            "key.simple_recipe_change.pick_from_jei",
+            KeyConflictContext.GUI,
+            InputConstants.Type.KEYSYM,
+            GLFW.GLFW_KEY_V,
+            CATEGORY);
+
     private KeyMappings() {
     }
 }

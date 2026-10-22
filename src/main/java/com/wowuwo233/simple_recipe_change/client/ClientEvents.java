@@ -21,6 +21,13 @@ public final class ClientEvents {
             return;
         }
         Minecraft minecraft = Minecraft.getInstance();
+        while (KeyMappings.PICK_FROM_JEI.consumeClick()) {
+            // 先判 JEI 在不在，再碰插件类——不然没装 JEI 时会因为缺类崩掉
+            if (minecraft.screen instanceof RecipeEditorScreen screen
+                    && net.minecraftforge.fml.ModList.get().isLoaded("jei")) {
+                com.wowuwo233.simple_recipe_change.compat.JeiJumpPlugin.pickHoveredInto(screen);
+            }
+        }
         while (KeyMappings.OPEN_EDITOR.consumeClick()) {
             // 只有没开任何界面时才请求打开编辑器，否则会顶掉聊天栏等界面
             if (minecraft.screen == null && minecraft.player != null) {

@@ -20,6 +20,7 @@ public final class ClientSetup {
     @SubscribeEvent
     public static void onRegisterKeyMappings(RegisterKeyMappingsEvent event) {
         event.register(KeyMappings.OPEN_EDITOR);
+        event.register(KeyMappings.PICK_FROM_JEI);
     }
 
     @SubscribeEvent

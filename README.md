@@ -3,7 +3,7 @@
 在游戏内可视化编辑配方的 Forge 模组：按 **G 键**打开全中文编辑器，
 可以**添加配方**、**修改已有配方**、**删除配方**，并把结果写成 **KubeJS 可读的脚本**。
 
-当前版本 **1.17.0**。不添加任何物品或方块，只做配方编辑。
+当前版本 **1.18.0**。不添加任何物品或方块，只做配方编辑。
 
 ---
 
@@ -50,7 +50,7 @@
 | Forge | 47.4.26（1.20.1 推荐版） | 同上 |
 | Java (JDK) | **17**（Oracle JDK 17.0.12） | `C:\Program Files\Java\jdk-17` |
 | Gradle | 8.8 | `D:\DSH work\.gradle-home` |
-| 模组版本 | **1.17.0** | `gradle.properties` → `mod_version` |
+| 模组版本 | **1.18.0** | `gradle.properties` → `mod_version` |
 
 > MC 1.20.1 / Forge 47.x 的编译与运行目标都是 **Java 17**，用 JDK 21 会报 class file version 错误。
 
@@ -59,7 +59,7 @@
 ## 3. 常用命令
 
 ```powershell
-.\dev.ps1 build            # 编译，产物 build\libs\simple_recipe_change-1.17.0.jar
+.\dev.ps1 build            # 编译，产物 build\libs\simple_recipe_change-1.18.0.jar
 .\dev.ps1 runClient        # 启动开发版客户端
 .\dev.ps1 runServer        # 启动开发版服务端
 .\dev.ps1 runData          # 数据生成
@@ -379,6 +379,12 @@ JEI 是**可选**依赖：`compileOnly` 编译，运行时没装 JEI 就不会�
 - 拖到任意**输入格** → 直接填成那个物品（禁用的格子不接受，比如序列组装里被压印的步骤格）
 - 拖到**产物格** → 交给服务端换成这个物品（会顺带触发原版配方反查）
 - 拖拽时目标格会高亮
+
+**快捷键 V**（可在按键设置里改）：鼠标停在 JEI 的物品列表/书签上按 V，
+直接把它放进编辑器**第一个空的输入格**（都满了就按当前模式放产物格）。
+
+**右键快速填充**：拖过/选过一次物品后，右键任意**空格**会用那个物品填上；
+右键**有内容的格子**仍然是清空。
 - 悬停任意格子会显示**物品名与物品 ID**。
   ⚠️ 早期版本文档写过「以及背包里有多少个」——当前实现**没有画数量**，
   对应的 `ItemSearchCache.countInInventory()` 是未被调用的死方法。
@@ -636,7 +642,7 @@ mod_id=simple_recipe_change
 mod_name=Simple Recipe Change
 mod_group_id=com.wowuwo233.simple_recipe_change
 mod_authors=wowuwo233
-mod_version=1.17.0
+mod_version=1.18.0
 ```
 
 改动后需同步：主类的 `MODID` 常量、Java 包目录与 `package` 语句、
@@ -663,12 +669,12 @@ mod_version=1.17.0
       `kubejs-forge-2001.6.5-build.26.jar` 逐个确认（方法名、参数顺序、键名），
       结果记在 [§8](#8-第三方配方类型的支持情况)
 - [x] `dev.cmd build` → **BUILD SUCCESSFUL**，`jar` 与 `reobfJar` 都正常执行
-- [x] 产物 `simple_recipe_change-1.17.0.jar`（251.7 KB，**51 个类**）内部结构正确：
-      `mods.toml` 的 `modId=simple_recipe_change` / `version=1.17.0` / `license=GPL-3.0-only`
+- [x] 产物 `simple_recipe_change-1.18.0.jar`（251.7 KB，**51 个类**）内部结构正确：
+      `mods.toml` 的 `modId=simple_recipe_change` / `version=1.18.0` / `license=GPL-3.0-only`
       与 `gradle.properties` 一致；
       资源里**无任何示例物品**（MDK 示例物品已清干净），只有 `pack.mcmeta`、两个 lang 文件、
       `mods.toml` 和 189 KB 的 `pinyin.txt`
-- [x] 已输出到工作区：`D:\DSH work\simple_recipe_change-1.17.0.jar`
+- [x] 已输出到工作区：`D:\DSH work\simple_recipe_change-1.18.0.jar`
 - [x] **1.8.4 修完遗留项后复验**：`compileJava` 与 `build` 均 **BUILD SUCCESSFUL**；
       `WriterCheck`（含新增的「切换类型时格子重排」用例）与 `SearchCheck` 双双 **ALL CHECKS PASSED**；
       jar 内 `description` 的中文正常（`gradle.properties` 里用 `\uXXXX` 转义后写入），
@@ -697,11 +703,11 @@ mod_version=1.17.0
 > 要让配方真正生效需要额外安装 **KubeJS**（把它的 jar 放进 `mods`）。
 >
 > 工作区里还留着旧版 `simple_recipe_change-1.8.3.jar` / `1.8.4.jar` / `1.9.0.jar` / `1.9.1.jar`，可手动删除；
-> **请用 `simple_recipe_change-1.17.0.jar`**。
+> **请用 `simple_recipe_change-1.18.0.jar`**。
 
 ---
 
-## 13. 遗留项处理记录（1.8.4 – 1.17.0）
+## 13. 遗留项处理记录（1.8.4 – 1.18.0）
 
 1.8.1 审计出来的问题在 1.8.4 逐条处理了一遍。下表是结论，细节在后文。
 
@@ -918,6 +924,18 @@ else compileOnly fg.deobf("mezz.jei:jei-1.20.1-forge:15.59.0.210")
   JEI 的面板宽度它自己定，我们只能「让出右侧」。高度收到 **372**（缩放 3 可用 360 再留余量），
   背包 296、快捷栏 352。
 
+### ⑯ 清掉 FTB 按钮 + 快捷填充（1.18.0）
+
+- **FTB 的按钮压在编辑器上**：FTB Library / Quests 用 `ScreenEvent.Init.Post` 给**任何**
+  容器界面塞按钮。我们不认识它们的类，所以反过来做：`init()` 结束时把已有控件记进
+  `ownWidgets`，`render()` 每帧把「不在这个集合里的」从 `renderables` / `children()` 里摘掉。
+- **快捷键 V**：`KeyMappings.PICK_FROM_JEI`（GUI 上下文）+ `IJeiRuntime` 的
+  `getIngredientListOverlay()/getBookmarkOverlay().getIngredientUnderMouse()`，
+  放进第一个空输入格。**必须先判 `ModList.isLoaded("jei")` 再碰插件类**，否则没装 JEI 会缺类崩。
+- **右键填充**：记住 `lastPickedItem`（拖拽 / 搜索选中都会设），右键空格填它，右键有内容则清空。
+- 纵向间距重排：控制行 208、标签 236、输入框 246、底栏 270（之前底栏 262 正好压着输入框底边），
+  并去掉了「配方类型」这行说明（按钮上已经写着「类型：xxx」）。
+
 ---
 
 ## 14. 仍未覆盖的部分
@@ -930,4 +948,4 @@ else compileOnly fg.deobf("mezz.jei:jei-1.20.1-forge:15.59.0.210")
 - **输入材料仍不带 NBT**：输入槽是「展示槽 + 字符串」，只记物品 ID 或 `#标签`。
   需要「必须用某个特定 NBT 物品当材料」时，得另外设计 `Item.of(...)` 的输入写法。
 - **序列组装只做了子集**：固定 4 步、只有部署 / 压印 / 切割（灌装要流体）、单产物（无废料）。
-- 旧版本 jar 仍留在 `D:\DSH work\`（`1.8.3`、`1.8.4`、`1.9.0`、`1.9.1`、`1.10.0`、`1.11.0`、`1.11.1`、`1.12.0`、`1.12.1`、`1.12.2`、`1.13.0`、`1.13.1`、`1.14.0`、`1.15.0`、`1.16.0`），**请用 `simple_recipe_change-1.17.0.jar`**。
+- 旧版本 jar 仍留在 `D:\DSH work\`（`1.8.3`、`1.8.4`、`1.9.0`、`1.9.1`、`1.10.0`、`1.11.0`、`1.11.1`、`1.12.0`、`1.12.1`、`1.12.2`、`1.13.0`、`1.13.1`、`1.14.0`、`1.15.0`、`1.16.0`、`1.17.0`），**请用 `simple_recipe_change-1.18.0.jar`**。

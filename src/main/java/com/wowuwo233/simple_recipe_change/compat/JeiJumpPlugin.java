@@ -15,6 +15,8 @@ import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.registration.IGuiHandlerRegistration;
 import mezz.jei.api.recipe.advanced.IRecipeButtonControllerFactory;
 import mezz.jei.api.registration.IAdvancedRegistration;
+import mezz.jei.api.runtime.IJeiRuntime;
+import mezz.jei.api.constants.VanillaTypes;
 import mezz.jei.api.gui.IRecipeLayoutDrawable;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
@@ -40,6 +42,33 @@ import java.util.List;
  */
 @JeiPlugin
 public class JeiJumpPlugin implements IModPlugin {
+
+    /** JEI 运行时，用来读「鼠标下是什么物品」 */
+    private static IJeiRuntime runtime;
+
+    @Override
+    public void onRuntimeAvailable(IJeiRuntime jeiRuntime) {
+        runtime = jeiRuntime;
+    }
+
+    /**
+     * 快捷键（默认 V）：把鼠标下（JEI 物品列表或书签栏）的物品放进编辑器第一个空格。
+     *
+     * <p>由 {@code ClientEvents} 在确认装了 JEI 之后才调用——没装 JEI 时这个类不会加载。
+     */
+    public static void pickHoveredInto(RecipeEditorScreen screen) {
+        if (runtime == null) {
+            return;
+        }
+        ItemStack stack = runtime.getIngredientListOverlay()
+                .getIngredientUnderMouse(VanillaTypes.ITEM_STACK);
+        if (stack == null || stack.isEmpty()) {
+            stack = runtime.getBookmarkOverlay().getIngredientUnderMouse(VanillaTypes.ITEM_STACK);
+        }
+        if (stack != null && !stack.isEmpty()) {
+            screen.fillFirstEmptySlot(stack);
+        }
+    }
 
     @Override
     public ResourceLocation getPluginUid() {

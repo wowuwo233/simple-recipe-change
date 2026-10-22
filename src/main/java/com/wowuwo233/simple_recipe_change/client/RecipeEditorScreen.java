@@ -65,12 +65,12 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
     private static final int MODE_Y = 22;
     private static final int SEARCH_Y = 46;
     private static final int FOUND_Y = 196;
-    private static final int CONTROLS_Y = 212;
-    private static final int LABEL_Y = 234;
+    private static final int CONTROLS_Y = 208;
+    private static final int LABEL_Y = 236;
     /** 配方名与文件名并排时各自的宽度：ID 可能很长，给宽一点 */
     private static final int ID_W = 278;
     private static final int FILE_X = 294;
-    private static final int FIELD_Y = 244;
+    private static final int FIELD_Y = 246;
     /**
      * 备注输入框。
      *
@@ -80,7 +80,7 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
      */
     private static final int NOTE_LABEL_Y = 166;
     private static final int NOTE_Y = 176;
-    private static final int BUTTONS_Y = 262;
+    private static final int BUTTONS_Y = 270;
 
     /**
      * 经验/成功率、处理时间/循环次数这两个框的 y。
@@ -180,6 +180,13 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
     /** 实际用几步（1..6）；编码进 heat 的项数就是它 */
     private int seqStepCount = 4;
     private Button seqCountButton;
+
+    /** 最近一次从 JEI 拖进来 / 搜索选中的物品；右键空格时用它填充 */
+    private String lastPickedItem;
+
+    /** 我们自己创建的控件；别的模组（FTB 等）后加进来的会被清掉 */
+    private final java.util.Set<Object> ownWidgets =
+            java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
 
     /**
      * 机械动力的具体机器与热度要求。
@@ -499,6 +506,26 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
         applySlotLayout();
         refreshButtonStates();
         updateWidgetVisibility();
+
+        // 记下「我们自己建的控件」——FTB Library / Quests 会在 Init.Post 里往任何容器界面
+        // 塞按钮，那些控件是 init() 之后才加进来的，渲染前清掉（见 purgeForeignWidgets）。
+        this.ownWidgets.clear();
+        this.ownWidgets.addAll(this.renderables);
+    }
+
+    /**
+     * 把别的模组塞进这个界面的按钮摘掉。
+     *
+     * <p>FTB Library / FTB Quests 这类模组用 {@code ScreenEvent.Init.Post} 给所有
+     * {@code AbstractContainerScreen} 加按钮，于是它们会浮在编辑器上面挡住版面。
+     * 我们不认识它们的类，所以反过来做：只保留 init() 结束时就已经存在的控件。
+     */
+    private void purgeForeignWidgets() {
+        if (this.ownWidgets.isEmpty()) {
+            return;
+        }
+        this.renderables.removeIf(widget -> !this.ownWidgets.contains(widget));
+        this.children().removeIf(widget -> !this.ownWidgets.contains(widget));
     }
 
     private void switchMode(Operation mode) {
@@ -1092,7 +1119,6 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
         }
 
         drawSlotLabels(graphics);
-        graphics.drawString(this.font, secondaryCaption(), 62, CONTROLS_Y - 10, COLOR_LABEL, false);
         graphics.drawString(this.font, "配方名（可留空）", 12, LABEL_Y, COLOR_LABEL, false);
         // 标签必须短：它从 x=12 起画，太长会撞上右边 x=150 的「烧制时间」标签。
         // 完整说明放在输入框的提示文字里。
@@ -1236,6 +1262,8 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        // 先把别的模组（FTB 等）挂上来的按钮摘掉，免得压在版面上
+        purgeForeignWidgets();
         // 产物格可能被拖动、被搜索选中、被「我的配方」载入，NBT 状态随时会变
         updateOutputNbtButton();
         this.renderBackground(graphics);
@@ -1463,7 +1491,13 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
                 continue;
             }
             if (button == 1) {
-                setInput(cell, null);
+                // 右键：空格用「上次拖/选的物品」填上，有内容则清空
+                String current = cell < this.inputItems.size() ? this.inputItems.get(cell) : null;
+                if ((current == null || current.isBlank()) && this.lastPickedItem != null) {
+                    setInput(cell, this.lastPickedItem);
+                } else {
+                    setInput(cell, null);
+                }
             } else {
                 ItemStack carried = this.menu.getCarried();
                 setInput(cell, carried.isEmpty() ? null : itemId(carried));
@@ -1548,6 +1582,7 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
     }
 
     private void applySearchResult(String itemId) {
+        this.lastPickedItem = itemId;
         if (searchGoesToOutput()) {
             ModNetwork.requestPickItem(itemId);
             return;
@@ -1588,6 +1623,35 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
      * <p>{@code slotIndex} 是菜单槽位下标（不是 containerSlot）：
      * 前 {@code inputMenuCount()} 个是输入展示槽，紧跟其后的是产物格。
      */
+    /**
+     * 把物品放进第一个空的、可用的输入格；都满了就按当前模式放产物格。
+     *
+     * <p>快捷键（默认 V）和 JEI 拖拽都走这里，顺便记住这个物品，供右键快速填充用。
+     */
+    public boolean fillFirstEmptySlot(ItemStack stack) {
+        String id = itemId(stack);
+        if (id == null) {
+            return false;
+        }
+        this.lastPickedItem = id;
+        for (int i = 0; i < this.menu.inputMenuCount() && i < this.menu.slots.size(); i++) {
+            int cell = this.menu.slots.get(i).getContainerSlot();
+            if (isDisabledInput(cell)) {
+                continue;
+            }
+            String current = cell < this.inputItems.size() ? this.inputItems.get(cell) : null;
+            if (current == null || current.isBlank()) {
+                setInput(cell, id);
+                return true;
+            }
+        }
+        if (searchGoesToOutput()) {
+            ModNetwork.requestPickItem(id);
+            return true;
+        }
+        return false;
+    }
+
     public boolean acceptsGhostDrop(int slotIndex) {
         if (slotIndex < 0 || slotIndex >= this.menu.slots.size()) {
             return false;
@@ -1604,6 +1668,7 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
         if (id == null) {
             return;
         }
+        this.lastPickedItem = id;
         if (slotIndex < this.menu.inputMenuCount()) {
             setInput(this.menu.slots.get(slotIndex).getContainerSlot(), id);
         } else {

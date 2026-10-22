@@ -1,4 +1,5 @@
 {
   "key.categories.simple_recipe_change": "简易配方修改",
-  "key.simple_recipe_change.open_editor": "打开配方编辑器"
+  "key.simple_recipe_change.open_editor": "打开配方编辑器",
+  "key.simple_recipe_change.pick_from_jei": "把 JEI 物品放进编辑器"
 }

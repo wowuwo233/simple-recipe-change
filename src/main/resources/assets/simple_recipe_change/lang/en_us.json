@@ -1,4 +1,5 @@
 {
   "key.categories.simple_recipe_change": "Simple Recipe Change",
-  "key.simple_recipe_change.open_editor": "Open Recipe Editor"
+  "key.simple_recipe_change.open_editor": "Open Recipe Editor",
+  "key.simple_recipe_change.pick_from_jei": "Put JEI item into editor"
 }
