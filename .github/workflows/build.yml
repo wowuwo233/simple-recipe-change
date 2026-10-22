@@ -1,0 +1,43 @@
+name: Build
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      # 刻意不用 ./gradlew：仓库里的 gradle-wrapper.properties 指向腾讯镜像
+      # （仓库作者所在网络访问 services.gradle.org 会超时），在 GitHub 的机器上
+      # 未必稳定。这里直接让 Action 装一份官方 Gradle 8.8，绕开 wrapper。
+      # 本地开发仍然照常用 ./gradlew。
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.8'
+
+      - name: Build
+        run: gradle build --no-daemon --stacktrace
+
+      - name: Upload jar
+        uses: actions/upload-artifact@v4
+        with:
+          name: simple_recipe_change-jar
+          path: build/libs/*.jar
+          if-no-files-found: error
