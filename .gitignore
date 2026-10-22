@@ -31,3 +31,6 @@ run*/crash-reports/
 
 # Files from Forge MDK
 forge*changelog.txt
+
+# 本地编译依赖（JEI），不入库
+libs/

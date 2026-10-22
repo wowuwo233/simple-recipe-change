@@ -17,6 +17,7 @@ import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.TickTask;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.SimpleMenuProvider;
 import net.minecraft.world.item.ItemStack;
@@ -84,7 +85,12 @@ public final class ModNetwork {
     // ------------------------------------------------------------------ 客户端入口
 
     public static void requestOpenEditor() {
-        CHANNEL.sendToServer(new OpenEditorPacket());
+        CHANNEL.sendToServer(new OpenEditorPacket(""));
+    }
+
+    /** 从 JEI 的配方页点按钮进来：打开编辑器并直接载入这条配方 */
+    public static void requestOpenEditorWithRecipe(String recipeId) {
+        CHANNEL.sendToServer(new OpenEditorPacket(recipeId == null ? "" : recipeId));
     }
 
     /** 客户端切换操作 / 类型 / Create 机器时调用（服务端执行） */
@@ -285,12 +291,13 @@ public final class ModNetwork {
 
     // ================================================================== 打开编辑器
 
-    public record OpenEditorPacket() {
+    public record OpenEditorPacket(String recipeId) {
         public static void encode(OpenEditorPacket msg, FriendlyByteBuf buf) {
+            buf.writeUtf(msg.recipeId == null ? "" : msg.recipeId, 256);
         }
 
         public static OpenEditorPacket decode(FriendlyByteBuf buf) {
-            return new OpenEditorPacket();
+            return new OpenEditorPacket(buf.readUtf(256));
         }
 
         public static void handle(OpenEditorPacket msg, Supplier<NetworkEvent.Context> ctxSupplier) {
@@ -303,6 +310,31 @@ public final class ModNetwork {
                 player.openMenu(new SimpleMenuProvider(
                         (windowId, inventory, p) -> new RecipeEditorMenu(windowId, inventory),
                         Component.literal("配方编辑器")));
+
+                String raw = msg.recipeId == null ? "" : msg.recipeId.trim();
+                if (raw.isEmpty()) {
+                    return;
+                }
+                // 等两 tick 再回填：客户端要先收到「打开界面」的包并建好 Screen，
+                // 紧接着发的状态包才有人接，否则会被丢掉。
+                MinecraftServer server = player.getServer();
+                if (server == null) {
+                    return;
+                }
+                server.tell(new TickTask(server.getTickCount() + 2, () -> {
+                    if (!(player.containerMenu instanceof RecipeEditorMenu menu)) {
+                        return;
+                    }
+                    ResourceLocation id = ResourceLocation.tryParse(raw);
+                    VanillaRecipeLookup.Found found = id == null ? null
+                            : VanillaRecipeLookup.byId(player.serverLevel(), id);
+                    if (found == null) {
+                        sendSaveResult(player, false,
+                                "打不开配方 " + raw + "（可能类型暂不支持）", null);
+                        return;
+                    }
+                    menu.applyFoundById(player, found);
+                }));
             });
             ctx.setPacketHandled(true);
         }
