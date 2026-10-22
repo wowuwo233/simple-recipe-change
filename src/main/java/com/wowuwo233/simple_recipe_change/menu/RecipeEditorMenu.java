@@ -130,24 +130,27 @@ public class RecipeEditorMenu extends AbstractContainerMenu {
      * <p>第一行是「输入物品 / 过渡物品 / 产物」，下面一排 4 个步骤：
      * 每个步骤上面一个按钮（部署 / 压印 / 切割），下面一个材料格。
      */
-    public static final int SEQ_STEP_COUNT = 4;
+    public static final int SEQ_STEP_COUNT = 6;
     public static final int SEQ_ROW_Y = 76;
     public static final int SEQ_INPUT_X = 16;
     public static final int SEQ_TRANSITIONAL_X = 76;
     public static final int SEQ_OUTPUT_X = 136;
-    /** 步骤按钮的 x 与间距（按钮宽 72，槽位在按钮下方居中） */
+    /** 失败产物（产物按权重随机，成功率之外的权重给它） */
+    public static final int SEQ_FAIL_X = 196;
+    /** 步骤按钮：6 个并排，宽度压到 46 才排得下 */
     public static final int SEQ_BUTTON_X0 = 16;
-    public static final int SEQ_BUTTON_STEP = 78;
+    public static final int SEQ_BUTTON_STEP = 51;
     public static final int SEQ_BUTTON_Y = 112;
-    public static final int SEQ_BUTTON_W = 72;
+    public static final int SEQ_BUTTON_W = 46;
     public static final int SEQ_SLOT_Y = 136;
     /** 步骤材料格在按钮下方的居中偏移 */
-    public static final int SEQ_SLOT_INSET = 27;
-    public static final int SEQ_LABEL_Y = 156;
-    /** 循环次数输入框的位置（第一行右侧，输入/过渡/产物止于 154） */
-    public static final int SEQ_LOOPS_X = 180;
+    public static final int SEQ_SLOT_INSET = 14;
+    /** 循环次数 / 成功率输入框（第一行右侧，失败产物止于 232） */
+    public static final int SEQ_LOOPS_X = 240;
     public static final int SEQ_LOOPS_Y = 76;
-    public static final int SEQ_LOOPS_W = 60;
+    public static final int SEQ_LOOPS_W = 36;
+    public static final int SEQ_CHANCE_X = 288;
+    public static final int SEQ_CHANCE_W = 36;
     /**
      * 机械动力的额外产物行。
      *
@@ -310,6 +313,9 @@ public class RecipeEditorMenu extends AbstractContainerMenu {
                                 SEQ_SLOT_Y), firstTime);
                     }
                     place(new EditorSlot(this.output, 0, SEQ_OUTPUT_X, SEQ_ROW_Y), firstTime);
+                    // 失败产物：排在产物之后的额外产物格（索引 7），内容由客户端维护
+                    place(new DisplaySlot(this.placeholder, EXTRA_OUTPUT_CONTAINER_BASE,
+                            SEQ_FAIL_X, SEQ_ROW_Y), firstTime);
                 } else {
                     // 处理配方：材料 3×3（9 格），网格下方是标注行，再下面是额外产物行
                     for (int i = 0; i < CREATE_MATERIAL_SLOTS; i++) {
@@ -471,6 +477,10 @@ public class RecipeEditorMenu extends AbstractContainerMenu {
      * 其余机器全是单产物——给它们摆副产物槽纯属误导。
      */
     public int extraOutputCount() {
+        if (recipeType.isSequenced()) {
+            // 序列组装只留一格「失败产物」，没有概率框（权重由成功率反推）
+            return 1;
+        }
         if (recipeType.isCreate()) {
             return createMachine.hasByproducts() ? EXTRA_OUTPUT_COUNT : 0;
         }

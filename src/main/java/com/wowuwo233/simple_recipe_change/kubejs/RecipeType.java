@@ -54,7 +54,7 @@ public enum RecipeType {
      * 按逗号分隔存 {@code deploying,pressing,...}；循环次数复用 {@code cookingTime}。
      * 这样索引、网络包都不用改结构，代价是字段语义要在这里写清楚。
      */
-    CREATE_SEQUENCED("create_sequenced", "机械动力 · 序列组装", "序列组装", Category.CREATE, 6, 1);
+    CREATE_SEQUENCED("create_sequenced", "机械动力 · 序列组装", "序列组装", Category.CREATE, 8, 1);
 
     /** 配方大类，决定界面布局与生成方式 */
     public enum Category {
@@ -154,7 +154,8 @@ public enum RecipeType {
             case FARMERS_COOKING -> new String[]{"材料", "材料", "材料", "材料", "材料", "材料", "容器"};
             case FARMERS_CUTTING -> new String[]{"材料", "工具"};
             case CREATE_PROCESSING -> new String[]{"材料"};
-            case CREATE_SEQUENCED -> new String[]{"输入物品", "过渡物品", "步骤 1", "步骤 2", "步骤 3", "步骤 4"};
+            case CREATE_SEQUENCED -> new String[]{"输入物品", "过渡物品",
+                    "步骤 1", "步骤 2", "步骤 3", "步骤 4", "步骤 5", "步骤 6"};
         };
     }
 

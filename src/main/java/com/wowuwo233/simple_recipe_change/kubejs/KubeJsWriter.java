@@ -398,7 +398,7 @@ public final class KubeJsWriter {
 
         String[] kinds = d.heat() == null ? new String[0] : d.heat().split(",");
         List<String> steps = new ArrayList<>();
-        for (int i = 0; i < kinds.length && i < 4; i++) {
+        for (int i = 0; i < kinds.length && i < 6; i++) {
             String kind = kinds[i] == null ? "" : kinds[i].trim();
             if (kind.isEmpty()) {
                 continue;
@@ -427,7 +427,39 @@ public final class KubeJsWriter {
         }
 
         sb.append("event.recipes.create.sequenced_assembly(\n");
-        sb.append("  [").append(output).append("],\n");
+
+        // 产物按权重随机：成功率 < 100 时主产物拿 P 的权重，失败产物拿 100-P，
+        // 这样最终成功率刚好是 P%。只有一项时不写权重，保持脚本干净。
+        double success = d.xp() <= 0D ? 100D : Math.min(100D, d.xp());
+        String failure = null;
+        for (RecipeDraft.ExtraOutput extra : d.extraOutputs()) {
+            if (extra != null && extra.item() != null && !extra.item().isBlank()) {
+                failure = extra.item();
+                break;
+            }
+        }
+        List<String> results = new ArrayList<>();
+        if (success < 100D) {
+            if (failure == null) {
+                throw new IllegalArgumentException(
+                        "成功率小于 100% 时，请把失败产物放进「失败产物」格");
+            }
+            results.add("Item.of(" + output + ").withChance(" + formatNumber(success) + ")");
+            results.add("Item.of('" + failure + "').withChance("
+                    + formatNumber(100D - success) + ")");
+        } else {
+            results.add(output);
+        }
+
+        if (results.size() == 1) {
+            sb.append("  [").append(results.get(0)).append("],\n");
+        } else {
+            sb.append("  [\n");
+            for (String r : results) {
+                sb.append("    ").append(r).append(",\n");
+            }
+            sb.append("  ],\n");
+        }
         sb.append("  '").append(input).append("',\n");
         sb.append("  [\n");
         for (int i = 0; i < steps.size(); i++) {

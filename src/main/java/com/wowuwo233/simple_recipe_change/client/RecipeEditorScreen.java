@@ -172,7 +172,11 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
      * 服务端和索引都不需要为它改结构。
      */
     private final Button[] seqButtons = new Button[RecipeEditorMenu.SEQ_STEP_COUNT];
-    private final String[] seqKinds = {"deploying", "deploying", "deploying", "deploying"};
+    private final String[] seqKinds = {"deploying", "deploying", "deploying",
+            "deploying", "deploying", "deploying"};
+    /** 实际用几步（1..6）；编码进 heat 的项数就是它 */
+    private int seqStepCount = 4;
+    private Button seqCountButton;
 
     /**
      * 机械动力的具体机器与热度要求。
@@ -458,6 +462,17 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
                     .build());
         }
 
+        // 「步骤数」按钮：序列组装下占了「机器 / 热度」那两个按钮的位置
+        this.seqCountButton = this.addRenderableWidget(Button.builder(
+                        Component.literal(seqCountLabel()), b -> {
+                            this.seqStepCount = this.seqStepCount
+                                    % RecipeEditorMenu.SEQ_STEP_COUNT + 1;
+                            refreshButtonStates();
+                            updateWidgetVisibility();
+                        })
+                .bounds(this.leftPos + 172, this.topPos + CONTROLS_Y, 92, 20)
+                .build());
+
         // 控件都建好之后再统一摆一次位置与可见性：
         // init 前半段调用的那次是在字段创建之前，改不到它们。
         refreshButtonStates();
@@ -512,6 +527,10 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
         // 处理时间的默认值随类型走：原版烧炼 200 tick，机械动力 100 tick，序列组装是循环次数 4
         if (this.timeField != null) {
             this.timeField.setValue(String.valueOf(this.recipeType.defaultProcessingTime()));
+        }
+        // 序列组装的成功率默认 100%（经验框被借来当成功率用）
+        if (this.xpField != null && this.recipeType.isSequenced()) {
+            this.xpField.setValue("100");
         }
         // 类型换了，步骤按钮/循环次数框的可见性与位置也要跟着换
         updateWidgetVisibility();
@@ -573,6 +592,9 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
             if (this.seqButtons[i] != null) {
                 this.seqButtons[i].setMessage(Component.literal(seqButtonLabel(i)));
             }
+        }
+        if (this.seqCountButton != null) {
+            this.seqCountButton.setMessage(Component.literal(seqCountLabel()));
         }
     }
 
@@ -656,9 +678,15 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
         return (index + 1) + " " + seqKindName(this.seqKinds[index]);
     }
 
-    /** 从索引/网络包里的 heat 字段还原 4 个步骤类型 */
+    private String seqCountLabel() {
+        return "步骤数：" + this.seqStepCount;
+    }
+
+    /** 从索引/网络包里的 heat 字段还原步骤类型与步骤数 */
     private void decodeSeqKinds(String encoded) {
-        String[] parts = encoded == null ? new String[0] : encoded.split(",");
+        String[] parts = encoded == null || encoded.isBlank() ? new String[0] : encoded.split(",");
+        this.seqStepCount = Math.max(1, Math.min(RecipeEditorMenu.SEQ_STEP_COUNT,
+                parts.length == 0 ? 4 : parts.length));
         for (int i = 0; i < this.seqKinds.length; i++) {
             this.seqKinds[i] = i < parts.length && !parts[i].isBlank()
                     ? parts[i].trim() : "deploying";
@@ -775,9 +803,10 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
         }
 
         boolean cooking = this.recipeType.hasCookingSettings();
+        boolean sequenced = this.recipeType.isSequenced();
         boolean time = this.recipeType.hasTimeField();
         // 经验框对机械动力没有意义，但序列组装会把它当「组装成功率」用
-        boolean xpRow = cooking;
+        boolean xpRow = cooking || sequenced;
         // 只有「经验/成功率」和「时间/循环」都在时才排两行；否则时间框上移到 y=92，
         // 不然两个框会落在同一个位置叠在一起（序列组装就踩过这个坑）
         boolean twoRows = twoFieldRows();
@@ -785,6 +814,15 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
             xpField.visible = visible && xpRow;
             if (!xpField.visible) {
                 xpField.setFocused(false);
+            } else if (sequenced) {
+                // 成功率框和循环次数框并排放在第一行右侧
+                this.xpField.setX(this.leftPos + RecipeEditorMenu.SEQ_CHANCE_X);
+                this.xpField.setY(this.topPos + RecipeEditorMenu.SEQ_LOOPS_Y);
+                this.xpField.setWidth(RecipeEditorMenu.SEQ_CHANCE_W);
+            } else {
+                this.xpField.setX(this.leftPos + FIELD_X);
+                this.xpField.setY(this.topPos + XP_FIELD_Y);
+                this.xpField.setWidth(FIELD_W);
             }
         }
         if (timeField != null) {
@@ -804,12 +842,21 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
             }
         }
 
-        // 步骤按钮只有序列组装才有
-        boolean sequenced = this.recipeType.isSequenced();
-        for (Button button : this.seqButtons) {
-            if (button != null) {
-                button.visible = visible && sequenced;
+        // 步骤按钮只有序列组装才有，而且只显示「步骤数」以内的
+        for (int i = 0; i < this.seqButtons.length; i++) {
+            if (this.seqButtons[i] != null) {
+                this.seqButtons[i].visible = visible && sequenced && i < this.seqStepCount;
             }
+        }
+        if (this.seqCountButton != null) {
+            this.seqCountButton.visible = visible && sequenced;
+        }
+        // 序列组装下「机器 / 热度」没意义，藏起来把位置让给「步骤数」
+        if (this.shapelessButton != null) {
+            this.shapelessButton.visible = visible && !sequenced;
+        }
+        if (this.mirrorButton != null) {
+            this.mirrorButton.visible = visible && !sequenced;
         }
 
         // 概率框只属于切菜板；机械动力的额外产物不带概率，格子显示但框不显示
@@ -895,6 +942,9 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
             this.createHeat = msg.heat() == null ? "" : msg.heat();
             if (newType.isSequenced()) {
                 decodeSeqKinds(this.createHeat);
+                if (this.xpField != null && msg.xp() > 0) {
+                    this.xpField.setValue(KubeJsWriter.formatNumber(msg.xp()));
+                }
             }
             if (this.noteField != null) {
                 this.noteField.setValue(msg.note() == null ? "" : msg.note());
@@ -1015,7 +1065,10 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
 
         boolean cooking = this.recipeType.hasCookingSettings();
         // 经验框：原版烧炼/烹饪锅是「获得经验」，序列组装借它当「组装成功率」
-        if (cooking) {
+        if (this.recipeType.isSequenced()) {
+            graphics.drawString(this.font, "成功率", RecipeEditorMenu.SEQ_CHANCE_X,
+                    RecipeEditorMenu.SEQ_LOOPS_Y - 10, COLOR_LABEL, false);
+        } else if (cooking) {
             graphics.drawString(this.font, "获得经验", FIELD_X, XP_FIELD_Y - 10, COLOR_LABEL, false);
         }
         // 时间框：烧制时间 / 处理时间——之前被 hasCookingSettings 一起挡住了，
@@ -1077,17 +1130,14 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
         return this.recipeType.hasCookingSettings() && this.recipeType.hasTimeField();
     }
 
-    /** 序列组装的槽位标注：第一行两个输入 + 四个步骤（「产物」由通用代码统一画） */
+    /** 序列组装的槽位标注（步骤序号写在按钮上，这里只标第一行） */
     private void drawSequencedLabels(GuiGraphics graphics) {
         graphics.drawString(this.font, "输入物品", RecipeEditorMenu.SEQ_INPUT_X,
                 RecipeEditorMenu.SEQ_ROW_Y + 22, COLOR_SLOT_LABEL, false);
         graphics.drawString(this.font, "过渡物品", RecipeEditorMenu.SEQ_TRANSITIONAL_X,
                 RecipeEditorMenu.SEQ_ROW_Y + 22, COLOR_SLOT_LABEL, false);
-        for (int i = 0; i < RecipeEditorMenu.SEQ_STEP_COUNT; i++) {
-            int x = RecipeEditorMenu.SEQ_BUTTON_X0 + i * RecipeEditorMenu.SEQ_BUTTON_STEP;
-            graphics.drawString(this.font, "步骤 " + (i + 1), x + 12,
-                    RecipeEditorMenu.SEQ_LABEL_Y, COLOR_SLOT_LABEL, false);
-        }
+        graphics.drawString(this.font, "失败产物", RecipeEditorMenu.SEQ_FAIL_X,
+                RecipeEditorMenu.SEQ_ROW_Y + 22, COLOR_SLOT_LABEL, false);
     }
 
     /**
@@ -1174,11 +1224,11 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
                 }
             }
 
-            // 切菜板的额外产物：同样由客户端画，右边那个框填概率
-            // （提示文字统一在 drawFarmersLabels 里画在标注那一行，不另起一行挤位置）
-            if (this.recipeType.hasMultipleOutputs()) {
+            // 额外产物（切菜板 / 机械动力副产物 / 序列组装的失败产物）：由客户端画
+            int extraCount = this.menu.extraOutputCount();
+            if (extraCount > 0) {
                 int base = this.menu.outputMenuIndex() + 1;
-                for (int i = 0; i < RecipeEditorMenu.EXTRA_OUTPUT_COUNT; i++) {
+                for (int i = 0; i < extraCount; i++) {
                     int slotIndex = base + i;
                     if (slotIndex >= this.menu.slots.size()) {
                         break;
@@ -1365,10 +1415,11 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
             return true;
         }
 
-        // 切菜板的额外产物格：同一个交互——拿东西点一下放，空手点或右键清空
-        if (this.recipeType.hasMultipleOutputs()) {
+        // 额外产物格：同一个交互——拿东西点一下放，空手点或右键清空
+        int extraCount = this.menu.extraOutputCount();
+        if (extraCount > 0) {
             int base = this.menu.outputMenuIndex() + 1;
-            for (int i = 0; i < RecipeEditorMenu.EXTRA_OUTPUT_COUNT; i++) {
+            for (int i = 0; i < extraCount; i++) {
                 int slotIndex = base + i;
                 if (slotIndex >= this.menu.slots.size()) {
                     break;
@@ -1477,10 +1528,12 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
         if (this.operation == Operation.REMOVE) {
             return true;
         }
-        // 序列组装：压印 / 切割只用过渡物品本身，不需要额外材料，对应格子禁用
+        // 序列组装：超出「步骤数」的格子、以及压印 / 切割（只用过渡物品本身）的格子都禁用
         if (this.recipeType.isSequenced() && index >= 2) {
             int step = index - 2;
-            return step >= this.seqKinds.length || !"deploying".equals(this.seqKinds[step]);
+            return step >= this.seqStepCount
+                    || step >= this.seqKinds.length
+                    || !"deploying".equals(this.seqKinds[step]);
         }
         if (!this.recipeType.isCrafting()) {
             return false;
@@ -1513,8 +1566,8 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
             }
         }
         if (this.recipeType.isSequenced()) {
-            // 步骤类型编码进 heat（本类型不用热度），服务端与索引都不必改结构
-            this.createHeat = String.join(",", this.seqKinds);
+            // 步骤类型编码进 heat（本类型不用热度），项数就是「步骤数」
+            this.createHeat = String.join(",", java.util.Arrays.copyOf(this.seqKinds, this.seqStepCount));
         }
         ModNetwork.requestSaveRecipe(
                 this.fileField.getValue(),

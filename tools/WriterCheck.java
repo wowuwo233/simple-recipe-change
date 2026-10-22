@@ -183,6 +183,34 @@ public class WriterCheck {
                 c, "create:precision_mechanism", 1, Operation.ADD, RemoveBy.OUTPUT, "", 0D, 1)
                 .withHeat("deploying");
         expectError("部署步骤缺材料时报错", () -> KubeJsWriter.renderRecipeCall(bad, "x"));
+
+        // 六步 + 成功率 + 失败产物
+        List<String> six = blank(9);
+        six.set(0, "create:golden_sheet");
+        six.set(1, "create:incomplete_precision_mechanism");
+        for (int i = 0; i < 6; i++) {
+            six.set(2 + i, "minecraft:iron_nugget");
+        }
+        RecipeDraft weighted = new RecipeDraft(RecipeType.CREATE_SEQUENCED, false, true,
+                "simple_recipe_change:seq_six", six, "create:precision_mechanism", 1,
+                Operation.ADD, RemoveBy.OUTPUT, "", 80D, 3)
+                .withHeat("deploying,pressing,cutting,deploying,pressing,cutting")
+                .withExtraOutputs(List.of(
+                        new RecipeDraft.ExtraOutput("create:crushed_gold_ore", 1, 1D)));
+        String w = KubeJsWriter.renderRecipeCall(weighted, "simple_recipe_change");
+        System.out.println(w);
+        check("六步全部写出", occurrences(w, "event.recipes.create.") == 7); // 外层 1 + 步骤 6
+        check("成功率写成权重", w.contains(
+                "Item.of('create:precision_mechanism').withChance(80)"));
+        check("失败产物拿剩余权重", w.contains(
+                "Item.of('create:crushed_gold_ore').withChance(20)"));
+        check("循环次数 3", w.contains(".loops(3)"));
+
+        // 成功率 < 100 却没填失败产物 → 报错
+        RecipeDraft noFail = new RecipeDraft(RecipeType.CREATE_SEQUENCED, false, true, "",
+                c, "create:precision_mechanism", 1, Operation.ADD, RemoveBy.OUTPUT, "", 50D, 1)
+                .withHeat("pressing");
+        expectError("缺失败产物时报错", () -> KubeJsWriter.renderRecipeCall(noFail, "x"));
     }
 
     private static int occurrences(String text, String needle) {
