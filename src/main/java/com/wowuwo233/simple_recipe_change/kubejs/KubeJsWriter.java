@@ -153,6 +153,7 @@ public final class KubeJsWriter {
                     appendFarmersCutting(sb, d, output);
                 }
             }
+            case THERMAL -> appendThermal(sb, d, output);
             case CREATE -> {
                 if (d.type().isSequenced()) {
                     appendSequenced(sb, d, output);
@@ -365,6 +366,83 @@ public final class KubeJsWriter {
         if (machine.hasKeepHeldItem() && d.keepHeldItem()) {
             sb.append(".keepHeldItem(true)");
         }
+    }
+
+    /**
+     * 热力膨胀（kubejs-thermal）。
+     *
+     * <p>签名是 {@code event.recipes.thermal.<机器>(results, ingredients, xp?, energy?)}，
+     * 其中 results / ingredients 都允许<b>物品或流体混写</b>。
+     */
+    private static void appendThermal(StringBuilder sb, RecipeDraft d, String output) {
+        List<String> ingredients = new ArrayList<>();
+        for (String cell : d.inputCells()) {
+            if (cell != null && !cell.isBlank()) {
+                ingredients.add(renderIngredient(cell));
+            }
+        }
+        if (ingredients.isEmpty()) {
+            throw new IllegalArgumentException("请至少放入一种材料");
+        }
+
+        List<String> results = new ArrayList<>();
+        results.add(output);
+        for (RecipeDraft.ExtraOutput extra : d.extraOutputs()) {
+            if (extra == null || extra.item() == null || extra.item().isBlank()) {
+                continue;
+            }
+            String item = extra.count() > 1 ? extra.count() + "x " + extra.item() : extra.item();
+            results.add(renderIngredient(item));
+        }
+
+        sb.append(d.type().eventPath()).append("(\n");
+        sb.append("  [\n");
+        for (String r : results) {
+            sb.append("    ").append(r).append(",\n");
+        }
+        sb.append("  ],\n");
+        sb.append("  [\n");
+        for (String ing : ingredients) {
+            sb.append("    ").append(ing).append(",\n");
+        }
+        sb.append("  ]");
+
+        // xp / energy 都是可选参数，为 0 就不写，省得脚本里一堆没用的 0
+        if (d.xp() > 0D) {
+            sb.append(",\n  ").append(formatNumber(d.xp()));
+        }
+        if (d.cookingTime() > 0) {
+            if (d.xp() <= 0D) {
+                sb.append(",\n  0");
+            }
+            sb.append(",\n  ").append(d.cookingTime());
+        }
+        sb.append(")");
+    }
+
+    /**
+     * 单元格 -> KubeJS 表达式。
+     *
+     * <p>约定：以 {@code fluid:} 开头的是流体，写法 {@code fluid:namespace:path[:mB]}，
+     * 省略 mB 时按 1000；其余一律当物品 ID（可以带 {@code #标签} 或 {@code 3x 前缀}）。
+     */
+    private static String renderIngredient(String cell) {
+        if (cell.startsWith("fluid:")) {
+            String rest = cell.substring("fluid:".length());
+            String id = rest;
+            int amount = 1000;
+            int lastColon = rest.lastIndexOf(':');
+            if (lastColon > rest.indexOf(':')) {
+                try {
+                    amount = Integer.parseInt(rest.substring(lastColon + 1));
+                    id = rest.substring(0, lastColon);
+                } catch (NumberFormatException ignored) {
+                    // 末尾不是数字，整串当流体 ID
+                }
+            }
+            return "Fluid.of('" + id + "', " + amount + ")";
+        }
+        return "'" + cell + "'";
     }
 
     /**

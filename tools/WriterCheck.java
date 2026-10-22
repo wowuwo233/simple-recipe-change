@@ -33,6 +33,7 @@ public class WriterCheck {
         farmersDelight();
         createProcessing();
         sequencedAssembly();
+        thermal();
         outputNbt();
 
         System.out.println();
@@ -221,6 +222,21 @@ public class WriterCheck {
             index += needle.length();
         }
         return count;
+    }
+
+    static void thermal() {
+        List<String> cells = blank(9);
+        cells.set(0, "minecraft:gold_ore");
+        cells.set(1, "fluid:thermal:redstone:200");
+        RecipeDraft d = new RecipeDraft(RecipeType.THERMAL_PULVERIZER, false, true, "",
+                cells, "minecraft:gold_dust", 2, Operation.ADD, RemoveBy.OUTPUT, "", 0.1D, 2000);
+        String call = KubeJsWriter.renderRecipeCall(d, "x");
+        section("热力膨胀 · 粉碎机");
+        System.out.println(call);
+        check("thermal 命名空间", call.contains("event.recipes.thermal.pulverizer("));
+        check("物品材料带引号", call.contains("'minecraft:gold_ore'"));
+        check("流体写法", call.contains("Fluid.of('thermal:redstone', 200)"));
+        check("经验与能耗", call.contains("0.1") && call.contains("2000"));
     }
 
     static void outputNbt() {

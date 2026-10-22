@@ -45,18 +45,24 @@ public final class ModCompat {
         return isLoaded(CREATE) && isLoaded(KUBEJS_CREATE);
     }
 
+    /** 热力膨胀同理：本体 + kubejs-thermal 都要有 */
+    public static boolean hasThermal() {
+        return isLoaded("thermal") && isLoaded("kubejs_thermal");
+    }
+
     /** 这个分组在当前整合包里能不能选 */
     public static boolean available(RecipeType.Group group) {
         return switch (group) {
             case VANILLA -> true;
             case FARMERS_DELIGHT -> hasFarmersDelight();
             case CREATE -> hasCreate();
+            case THERMAL -> hasThermal();
         };
     }
 
     /** 有没有一个以上分组可用（只有一个时「分组」按钮就没必要点了） */
     public static boolean hasMultipleGroups() {
-        return hasFarmersDelight() || hasCreate();
+        return hasFarmersDelight() || hasCreate() || hasThermal();
     }
 
     /**

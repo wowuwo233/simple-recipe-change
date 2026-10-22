@@ -54,11 +54,29 @@ public enum RecipeType {
      * 按逗号分隔存 {@code deploying,pressing,...}；循环次数复用 {@code cookingTime}。
      * 这样索引、网络包都不用改结构，代价是字段语义要在这里写清楚。
      */
-    CREATE_SEQUENCED("create_sequenced", "机械动力 · 序列组装", "序列组装", Category.CREATE, 8, 1);
+    CREATE_SEQUENCED("create_sequenced", "机械动力 · 序列组装", "序列组装", Category.CREATE, 8, 1),
+
+    // ---- 热力膨胀（kubejs-thermal）：基础处理机器，材料/产物都允许流体 ----
+    THERMAL_FURNACE("thermal_furnace", "热力膨胀 · 红石炉", "红石炉", Category.THERMAL, 9, 1),
+    THERMAL_SAWMILL("thermal_sawmill", "热力膨胀 · 锯木机", "锯木", Category.THERMAL, 9, 1),
+    THERMAL_PULVERIZER("thermal_pulverizer", "热力膨胀 · 粉碎机", "粉碎", Category.THERMAL, 9, 1),
+    THERMAL_SMELTER("thermal_smelter", "热力膨胀 · 感应炉", "熔炼", Category.THERMAL, 9, 1),
+    THERMAL_CENTRIFUGE("thermal_centrifuge", "热力膨胀 · 离心机", "离心", Category.THERMAL, 9, 1),
+    THERMAL_PRESS("thermal_press", "热力膨胀 · 多驱冲压机", "冲压", Category.THERMAL, 9, 1),
+    THERMAL_CRUCIBLE("thermal_crucible", "热力膨胀 · 熔岩炉", "熔化", Category.THERMAL, 9, 1),
+    THERMAL_CHILLER("thermal_chiller", "热力膨胀 · 低温机", "低温", Category.THERMAL, 9, 1),
+    THERMAL_REFINERY("thermal_refinery", "热力膨胀 · 精炼机", "精炼", Category.THERMAL, 9, 1),
+    THERMAL_PYROLYZER("thermal_pyrolyzer", "热力膨胀 · 热解炉", "热解", Category.THERMAL, 9, 1),
+    THERMAL_BOTTLER("thermal_bottler", "热力膨胀 · 灌装机", "灌装", Category.THERMAL, 9, 1),
+    THERMAL_BREWER("thermal_brewer", "热力膨胀 · 酿造机", "酿造", Category.THERMAL, 9, 1),
+    THERMAL_CRYSTALLIZER("thermal_crystallizer", "热力膨胀 · 结晶机", "结晶", Category.THERMAL, 9, 1),
+    THERMAL_INSOLATOR("thermal_insolator", "热力膨胀 · 光照栽培机", "栽培", Category.THERMAL, 9, 1),
+    THERMAL_PULVERIZER_RECYCLE("thermal_pulverizer_recycle", "热力膨胀 · 粉碎回收", "粉碎回收", Category.THERMAL, 9, 1),
+    THERMAL_SMELTER_RECYCLE("thermal_smelter_recycle", "热力膨胀 · 熔炼回收", "熔炼回收", Category.THERMAL, 9, 1);
 
     /** 配方大类，决定界面布局与生成方式 */
     public enum Category {
-        CRAFTING, COOKING, SMITHING, FARMERS, CREATE
+        CRAFTING, COOKING, SMITHING, FARMERS, CREATE, THERMAL
     }
 
     /**
@@ -70,7 +88,8 @@ public enum RecipeType {
     public enum Group {
         VANILLA("原版"),
         FARMERS_DELIGHT("农夫乐事"),
-        CREATE("机械动力");
+        CREATE("机械动力"),
+        THERMAL("热力膨胀");
 
         private final String label;
 
@@ -140,7 +159,7 @@ public enum RecipeType {
             case CRAFTING -> gridWidth * gridHeight;
             case COOKING -> 1;
             case SMITHING -> 3;
-            case FARMERS, CREATE -> gridWidth;
+            case FARMERS, CREATE, THERMAL -> gridWidth;
         };
     }
 
@@ -156,6 +175,7 @@ public enum RecipeType {
             case CREATE_PROCESSING -> new String[]{"材料"};
             case CREATE_SEQUENCED -> new String[]{"输入物品", "过渡物品",
                     "步骤 1", "步骤 2", "步骤 3", "步骤 4", "步骤 5", "步骤 6"};
+            default -> new String[]{"材料"};
         };
     }
 
@@ -169,7 +189,7 @@ public enum RecipeType {
      * <p>只有原版烧炼和农夫乐事烹饪锅有；机械动力的处理配方没有经验。
      */
     public boolean hasCookingSettings() {
-        return category == Category.COOKING || this == FARMERS_COOKING;
+        return category == Category.COOKING || this == FARMERS_COOKING || isThermal();
     }
 
     /**
@@ -178,7 +198,7 @@ public enum RecipeType {
      * <p>机械动力也要，但含义不同——所以字段名必须随类型变，见 {@link #timeFieldLabel()}。
      */
     public boolean hasTimeField() {
-        return hasCookingSettings() || isCreate();
+        return hasCookingSettings() || isCreate() || isThermal();
     }
 
     /** 时间输入框上方那行说明 */
@@ -189,6 +209,9 @@ public enum RecipeType {
         }
         if (isCreate()) {
             return "处理时间（tick，默认 100）";
+        }
+        if (isThermal()) {
+            return "能耗（RF，默认 0）";
         }
         // 营火是 600，熔炉/高炉/烟熏炉是 200——默认值必须跟着类型说，不然玩家会以为写错了
         return "烧制时间（tick，默认 " + defaultProcessingTime() + "）";
@@ -209,9 +232,14 @@ public enum RecipeType {
         return category == Category.CREATE;
     }
 
+    /** 是否是热力膨胀类型（由 kubejs-thermal 提供 schema） */
+    public boolean isThermal() {
+        return category == Category.THERMAL;
+    }
+
     /** 是不是「多个产物」的类型（切菜板 + Create 处理配方）；序列组装只做单产物 */
     public boolean hasMultipleOutputs() {
-        return this == FARMERS_CUTTING || (isCreate() && !isSequenced());
+        return this == FARMERS_CUTTING || (isCreate() && !isSequenced()) || isThermal();
     }
 
     /** 机械动力 · 序列组装（步骤是一串子配方，界面和生成方式都特殊） */
@@ -225,7 +253,7 @@ public enum RecipeType {
             case CREATE_PROCESSING -> 100;
             case CREATE_SEQUENCED -> 4;
             case CAMPFIRE -> 600;
-            default -> 200;
+            default -> isThermal() ? 0 : 200;
         };
     }
 
@@ -262,6 +290,8 @@ public enum RecipeType {
             // Create 的真实方法名由具体机器决定，见 CreateMachine#eventPath
             case CREATE_PROCESSING -> "processing";
             case CREATE_SEQUENCED -> "sequenced_assembly";
+            // 热力膨胀：方法名就是配方类型路径，比如 thermal:pulverizer -> pulverizer
+            default -> id.startsWith("thermal_") ? id.substring("thermal_".length()) : id;
         };
     }
 
@@ -283,6 +313,9 @@ public enum RecipeType {
         if (isCreate()) {
             return "event.recipes.create." + kubeJsMethod();
         }
+        if (isThermal()) {
+            return "event.recipes.thermal." + kubeJsMethod();
+        }
         return "event." + kubeJsMethod();
     }
 
@@ -303,7 +336,10 @@ public enum RecipeType {
         if (isFarmers()) {
             return Group.FARMERS_DELIGHT;
         }
-        return isCreate() ? Group.CREATE : Group.VANILLA;
+        if (isCreate()) {
+            return Group.CREATE;
+        }
+        return isThermal() ? Group.THERMAL : Group.VANILLA;
     }
 
     /** 某个分组里的第一个类型 */

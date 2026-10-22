@@ -357,6 +357,21 @@ public class RecipeEditorMenu extends AbstractContainerMenu {
                     }
                 }
             }
+            case THERMAL -> {
+                // 热力膨胀：和机械动力处理配方同一套摆法（3×3 材料 + 产物 + 副产物行）
+                for (int i = 0; i < CREATE_MATERIAL_SLOTS; i++) {
+                    place(new DisplaySlot(this.placeholder, i,
+                            CREATE_GRID_X + (i % 3) * SLOT_SIZE,
+                            CREATE_GRID_Y + (i / 3) * SLOT_SIZE), firstTime);
+                }
+                place(new EditorSlot(this.output, 0, CREATE_OUTPUT_X,
+                        CREATE_GRID_Y + SLOT_SIZE), firstTime);
+                int extraThermal = extraOutputCount();
+                for (int i = 0; i < extraThermal; i++) {
+                    place(new DisplaySlot(this.placeholder, EXTRA_OUTPUT_CONTAINER_BASE + i,
+                            EXTRA_SLOT_X0 + i * EXTRA_SLOT_STEP, CREATE_EXTRA_ROW_Y), firstTime);
+                }
+            }
             case FARMERS -> {
                 if (recipeType == RecipeType.FARMERS_COOKING) {
                     // 3×2 材料网格（下标 0..5，行优先），照原版烹饪锅的样子
@@ -468,7 +483,7 @@ public class RecipeEditorMenu extends AbstractContainerMenu {
             case CRAFTING -> GRID_SIZE;
             case COOKING -> 1;
             case SMITHING -> 3;
-            case FARMERS, CREATE -> recipeType.inputSlotCount();
+            case FARMERS, CREATE, THERMAL -> recipeType.inputSlotCount();
         };
     }
 

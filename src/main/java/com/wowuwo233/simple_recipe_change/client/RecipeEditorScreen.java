@@ -1283,8 +1283,16 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
                             x + slot.x + 17, y + slot.y + 17, COLOR_DISABLED_TINT);
                     continue;
                 }
-                ItemStack ghost = RecipeEditorMenu.stackOf(cell < this.inputItems.size()
-                        ? this.inputItems.get(cell) : null);
+                String cellValue = cell < this.inputItems.size() ? this.inputItems.get(cell) : null;
+                if (cellValue != null && cellValue.startsWith("fluid:")) {
+                    // 流体：没有物品贴图，画个色块 + 数量，至少能看出「这里放的是流体」
+                    graphics.fill(x + slot.x + 1, y + slot.y + 1,
+                            x + slot.x + 17, y + slot.y + 17, 0x803B6EA5);
+                    graphics.drawString(this.font, "F", x + slot.x + 6, y + slot.y + 5,
+                            0xFFFFFFFF, false);
+                    continue;
+                }
+                ItemStack ghost = RecipeEditorMenu.stackOf(cellValue);
                 if (!ghost.isEmpty()) {
                     graphics.renderItem(ghost, x + slot.x, y + slot.y);
                 }
@@ -1440,6 +1448,17 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
                 this.searchField.setValue("");
                 this.searchResults = List.of();
                 return true;
+            }
+            // 搜索框里输 fluid:xxx：回车把它当流体放进第一个空格
+            if (keyCode == org.lwjgl.glfw.GLFW.GLFW_KEY_ENTER && searching()) {
+                String query = this.searchField.getValue().trim();
+                if (query.startsWith("fluid:") && query.length() > 6) {
+                    fillFirstEmptyCell(query);
+                    this.searchField.setValue("");
+                    this.searchResults = List.of();
+                    this.searchPage = 0;
+                    return true;
+                }
             }
             // 搜索框里输的是配方 ID：回车直接跳过去
             if (keyCode == org.lwjgl.glfw.GLFW.GLFW_KEY_ENTER && searching()) {
@@ -1628,6 +1647,23 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
      *
      * <p>快捷键（默认 V）和 JEI 拖拽都走这里，顺便记住这个物品，供右键快速填充用。
      */
+    /** 直接把一个字符串（物品 ID 或 fluid:xxx）放进第一个空输入格 */
+    public boolean fillFirstEmptyCell(String value) {
+        for (int i = 0; i < this.menu.inputMenuCount() && i < this.menu.slots.size(); i++) {
+            int cell = this.menu.slots.get(i).getContainerSlot();
+            if (isDisabledInput(cell)) {
+                continue;
+            }
+            String current = cell < this.inputItems.size() ? this.inputItems.get(cell) : null;
+            if (current == null || current.isBlank()) {
+                setInput(cell, value);
+                this.lastPickedItem = value;
+                return true;
+            }
+        }
+        return false;
+    }
+
     public boolean fillFirstEmptySlot(ItemStack stack) {
         String id = itemId(stack);
         if (id == null) {

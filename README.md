@@ -3,7 +3,7 @@
 在游戏内可视化编辑配方的 Forge 模组：按 **G 键**打开全中文编辑器，
 可以**添加配方**、**修改已有配方**、**删除配方**，并把结果写成 **KubeJS 可读的脚本**。
 
-当前版本 **1.18.0**。不添加任何物品或方块，只做配方编辑。
+当前版本 **1.19.0**。不添加任何物品或方块，只做配方编辑。
 
 ---
 
@@ -13,7 +13,7 @@
 |---|---|
 | 快捷键 | **G** 打开配方编辑器（可在「选项 → 按键控制」改） |
 | 三个独立模式 | **添加配方 / 修改配方 / 删除配方**，各自一个按钮，不合并 |
-| 配方类型（11 种） | **原版 7 种**：工作台合成（3×3）、物品栏合成（2×2）、**熔炉**、**高炉**、**烟熏炉**、**营火**、**锻造台**<br>**农夫乐事 2 种**：**烹饪锅**、**切菜板**<br>**机械动力 2 类**：**处理配方**（14 台机器，见 [§4.7](#47-机械动力处理配方)）、**序列组装**（1~6 步 + 成功率 + 失败产物，见 [§4.10](#410-机械动力--序列组装)） |
+| 配方类型（27 种） | **原版 7 种**：工作台合成（3×3）、物品栏合成（2×2）、**熔炉**、**高炉**、**烟熏炉**、**营火**、**锻造台**<br>**农夫乐事 2 种**：**烹饪锅**、**切菜板**<br>**机械动力 2 类**：**处理配方**（14 台机器，见 [§4.7](#47-机械动力处理配方)）、**序列组装**（1~6 步 + 成功率 + 失败产物，见 [§4.10](#410-机械动力--序列组装)）<br>**热力膨胀 16 台基础机器**：红石炉 / 锯木机 / 粉碎机 / 感应炉 / 离心机 / 多驱冲压机 / 熔岩炉 / 低温机 / 精炼机 / 热解炉 / 灌装机 / 酿造机 / 结晶机 / 光照栽培机 / 粉碎回收 / 熔炼回收 |
 | 类型分组 | **原版 / 农夫乐事 / 机械动力分开选**：「分组」按钮在可用分组间切换，「类型」按钮只在当前组内循环，不用一路按过去 |
 | **按配方 ID 跳转** | 搜索框输入 `namespace:path` 回车，自动切到对应类型并回填材料/产物/副产物，见 [§5.1](#51-按配方-id-跳转) |
 | **JEI 联动** | 装了 JEI 时，每张配方页右上角多一个 📖 按钮，点一下直接带着这条配方打开编辑器，见 [§5.2](#52-jei-联动) |
@@ -50,7 +50,7 @@
 | Forge | 47.4.26（1.20.1 推荐版） | 同上 |
 | Java (JDK) | **17**（Oracle JDK 17.0.12） | `C:\Program Files\Java\jdk-17` |
 | Gradle | 8.8 | `D:\DSH work\.gradle-home` |
-| 模组版本 | **1.18.0** | `gradle.properties` → `mod_version` |
+| 模组版本 | **1.19.0** | `gradle.properties` → `mod_version` |
 
 > MC 1.20.1 / Forge 47.x 的编译与运行目标都是 **Java 17**，用 JDK 21 会报 class file version 错误。
 
@@ -59,7 +59,7 @@
 ## 3. 常用命令
 
 ```powershell
-.\dev.ps1 build            # 编译，产物 build\libs\simple_recipe_change-1.18.0.jar
+.\dev.ps1 build            # 编译，产物 build\libs\simple_recipe_change-1.19.0.jar
 .\dev.ps1 runClient        # 启动开发版客户端
 .\dev.ps1 runServer        # 启动开发版服务端
 .\dev.ps1 runData          # 数据生成
@@ -313,6 +313,22 @@ event.recipes.create.sequenced_assembly(
   [ ... ]
 ).transitionalItem('create:incomplete_precision_mechanism').loops(3)
 ```
+
+### 4.11 热力膨胀（kubejs-thermal）
+
+16 台基础机器共用一套布局（3×3 材料 + 产物 + 4 个副产物），生成：
+
+```js
+event.recipes.thermal.pulverizer(
+  ['2x minecraft:gold_dust'],
+  ['minecraft:gold_ore', Fluid.of('thermal:redstone', 200)],
+  0.1,    // 经验，可省
+  2000    // 能耗 RF，可省
+)
+```
+
+**流体**：材料格支持流体，搜索框输入 `fluid:thermal:redstone:200` 回车即可（省略 `:200` 默认 1000 mB），
+格子里会显示一个蓝色 F 块。生成时写成 `Fluid.of('thermal:redstone', 200)`。
 
 ---
 
@@ -642,7 +658,7 @@ mod_id=simple_recipe_change
 mod_name=Simple Recipe Change
 mod_group_id=com.wowuwo233.simple_recipe_change
 mod_authors=wowuwo233
-mod_version=1.18.0
+mod_version=1.19.0
 ```
 
 改动后需同步：主类的 `MODID` 常量、Java 包目录与 `package` 语句、
@@ -669,12 +685,12 @@ mod_version=1.18.0
       `kubejs-forge-2001.6.5-build.26.jar` 逐个确认（方法名、参数顺序、键名），
       结果记在 [§8](#8-第三方配方类型的支持情况)
 - [x] `dev.cmd build` → **BUILD SUCCESSFUL**，`jar` 与 `reobfJar` 都正常执行
-- [x] 产物 `simple_recipe_change-1.18.0.jar`（251.7 KB，**51 个类**）内部结构正确：
-      `mods.toml` 的 `modId=simple_recipe_change` / `version=1.18.0` / `license=GPL-3.0-only`
+- [x] 产物 `simple_recipe_change-1.19.0.jar`（259.2 KB，**51 个类**）内部结构正确：
+      `mods.toml` 的 `modId=simple_recipe_change` / `version=1.19.0` / `license=GPL-3.0-only`
       与 `gradle.properties` 一致；
       资源里**无任何示例物品**（MDK 示例物品已清干净），只有 `pack.mcmeta`、两个 lang 文件、
       `mods.toml` 和 189 KB 的 `pinyin.txt`
-- [x] 已输出到工作区：`D:\DSH work\simple_recipe_change-1.18.0.jar`
+- [x] 已输出到工作区：`D:\DSH work\simple_recipe_change-1.19.0.jar`
 - [x] **1.8.4 修完遗留项后复验**：`compileJava` 与 `build` 均 **BUILD SUCCESSFUL**；
       `WriterCheck`（含新增的「切换类型时格子重排」用例）与 `SearchCheck` 双双 **ALL CHECKS PASSED**；
       jar 内 `description` 的中文正常（`gradle.properties` 里用 `\uXXXX` 转义后写入），
@@ -703,11 +719,11 @@ mod_version=1.18.0
 > 要让配方真正生效需要额外安装 **KubeJS**（把它的 jar 放进 `mods`）。
 >
 > 工作区里还留着旧版 `simple_recipe_change-1.8.3.jar` / `1.8.4.jar` / `1.9.0.jar` / `1.9.1.jar`，可手动删除；
-> **请用 `simple_recipe_change-1.18.0.jar`**。
+> **请用 `simple_recipe_change-1.19.0.jar`**。
 
 ---
 
-## 13. 遗留项处理记录（1.8.4 – 1.18.0）
+## 13. 遗留项处理记录（1.8.4 – 1.19.0）
 
 1.8.1 审计出来的问题在 1.8.4 逐条处理了一遍。下表是结论，细节在后文。
 
@@ -948,4 +964,4 @@ else compileOnly fg.deobf("mezz.jei:jei-1.20.1-forge:15.59.0.210")
 - **输入材料仍不带 NBT**：输入槽是「展示槽 + 字符串」，只记物品 ID 或 `#标签`。
   需要「必须用某个特定 NBT 物品当材料」时，得另外设计 `Item.of(...)` 的输入写法。
 - **序列组装只做了子集**：固定 4 步、只有部署 / 压印 / 切割（灌装要流体）、单产物（无废料）。
-- 旧版本 jar 仍留在 `D:\DSH work\`（`1.8.3`、`1.8.4`、`1.9.0`、`1.9.1`、`1.10.0`、`1.11.0`、`1.11.1`、`1.12.0`、`1.12.1`、`1.12.2`、`1.13.0`、`1.13.1`、`1.14.0`、`1.15.0`、`1.16.0`、`1.17.0`），**请用 `simple_recipe_change-1.18.0.jar`**。
+- 旧版本 jar 仍留在 `D:\DSH work\`（`1.8.3`、`1.8.4`、`1.9.0`、`1.9.1`、`1.10.0`、`1.11.0`、`1.11.1`、`1.12.0`、`1.12.1`、`1.12.2`、`1.13.0`、`1.13.1`、`1.14.0`、`1.15.0`、`1.16.0`、`1.17.0`、`1.18.0`），**请用 `simple_recipe_change-1.19.0.jar`**。
