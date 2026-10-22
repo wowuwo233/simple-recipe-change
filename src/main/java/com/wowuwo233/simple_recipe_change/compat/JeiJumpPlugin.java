@@ -1,6 +1,7 @@
 package com.wowuwo233.simple_recipe_change.compat;
 
 import com.wowuwo233.simple_recipe_change.SimpleRecipeChangeMod;
+import com.wowuwo233.simple_recipe_change.client.RecipeEditorScreen;
 import com.wowuwo233.simple_recipe_change.network.ModNetwork;
 import mezz.jei.api.IModPlugin;
 import mezz.jei.api.JeiPlugin;
@@ -8,7 +9,10 @@ import mezz.jei.api.gui.buttons.IButtonState;
 import mezz.jei.api.gui.buttons.IIconButtonController;
 import mezz.jei.api.gui.builder.ITooltipBuilder;
 import mezz.jei.api.gui.drawable.IDrawable;
+import mezz.jei.api.gui.handlers.IGhostIngredientHandler;
 import mezz.jei.api.gui.inputs.IJeiUserInput;
+import mezz.jei.api.ingredients.ITypedIngredient;
+import mezz.jei.api.registration.IGuiHandlerRegistration;
 import mezz.jei.api.recipe.advanced.IRecipeButtonControllerFactory;
 import mezz.jei.api.registration.IAdvancedRegistration;
 import mezz.jei.api.gui.IRecipeLayoutDrawable;
@@ -17,7 +21,12 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.crafting.Recipe;
+import net.minecraft.client.renderer.Rect2i;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * 在 JEI 的每张配方页右上角加一个「打开编辑器」按钮。
@@ -37,9 +46,60 @@ public class JeiJumpPlugin implements IModPlugin {
         return new ResourceLocation(SimpleRecipeChangeMod.MODID, "jump_button");
     }
 
+    /**
+     * 允许从 JEI 把物品<b>拖</b>进编辑器：输入格直接填物品，产物格交给服务端替换。
+     *
+     * <p>目标区域按槽位算：前 {@code inputMenuCount()} 个是输入展示槽，
+     * 紧跟其后的是产物格；禁用/多余的槽位（比如序列组装里被压印的那几格）不产生目标。
+     */
     @Override
-    public void registerAdvanced(IAdvancedRegistration registration) {
-        IDrawable icon = registration.getJeiHelpers().getGuiHelper()
+    public void registerGuiHandlers(IGuiHandlerRegistration registration) {
+        registration.addGhostIngredientHandler(RecipeEditorScreen.class,
+                new IGhostIngredientHandler<RecipeEditorScreen>() {
+                    @Override
+                    public <I> List<Target<I>> getTargetsTyped(RecipeEditorScreen screen,
+                                                               ITypedIngredient<I> ingredient,
+                                                               boolean doStart) {
+                        List<Target<I>> targets = new ArrayList<>();
+                        if (!(ingredient.getIngredient() instanceof ItemStack stack)
+                                || stack.isEmpty()) {
+                            return targets;
+                        }
+                        List<Slot> slots = screen.getMenu().slots;
+                        for (int i = 0; i < slots.size(); i++) {
+                            if (!screen.acceptsGhostDrop(i)) {
+                                continue;
+                            }
+                            Slot slot = slots.get(i);
+                            final int index = i;
+                            Rect2i area = new Rect2i(screen.getGuiLeft() + slot.x,
+                                    screen.getGuiTop() + slot.y, 16, 16);
+                            targets.add(new Target<I>() {
+                                @Override
+                                public Rect2i getArea() {
+                                    return area;
+                                }
+
+                                @Override
+                                public void accept(I value) {
+                                    if (value instanceof ItemStack dropped) {
+                                        screen.acceptGhostDrop(index, dropped);
+                                    }
+                                }
+                            });
+                        }
+                        return targets;
+                    }
+
+                    @Override
+                    public void onComplete() {
+                        // 落下时已经写好了，这里不用收尾
+                    }
+                });
+    }
+
+    @Override
+    public void registerAdvanced(IAdvancedRegistration registration) {        IDrawable icon = registration.getJeiHelpers().getGuiHelper()
                 .createDrawableItemStack(new ItemStack(Items.WRITABLE_BOOK));
 
         registration.addRecipeButtonFactory(new IRecipeButtonControllerFactory() {

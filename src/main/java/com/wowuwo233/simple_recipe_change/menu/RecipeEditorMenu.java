@@ -49,7 +49,7 @@ public class RecipeEditorMenu extends AbstractContainerMenu {
     // ---------------------------------------------------------- 界面布局常量
     // 槽位坐标相对屏幕左上角 (leftPos, topPos)。
 
-    public static final int IMAGE_WIDTH = 640;
+    public static final int IMAGE_WIDTH = 520;
     /**
      * 窗口高度。
      *
@@ -65,7 +65,7 @@ public class RecipeEditorMenu extends AbstractContainerMenu {
      * （{@code leftPos}/{@code topPos} 是 init 时算的），切换类型时重建会带出
      * 一堆状态重置的坑；共用一套坐标最省事，代价只是别的类型下方多留了点空。
      */
-    public static final int IMAGE_HEIGHT = 400;
+    public static final int IMAGE_HEIGHT = 372;
     public static final int SLOT_SIZE = 18;
 
     /** 合成类：3×3 网格的行位置 */
@@ -74,37 +74,37 @@ public class RecipeEditorMenu extends AbstractContainerMenu {
     public static final int ROW_Y = 92;
 
     /** 添加模式：合成格 → 产物（与普通合成台一致） */
-    public static final int ADD_GRID_X = 126;
-    public static final int ADD_OUTPUT_X = 208;
+    public static final int ADD_GRID_X = 66;
+    public static final int ADD_OUTPUT_X = 148;
     /** 修改 / 删除模式：产物在前，合成格在后 */
-    public static final int MOD_GRID_X = 170;
-    public static final int MOD_OUTPUT_X = 126;
+    public static final int MOD_GRID_X = 110;
+    public static final int MOD_OUTPUT_X = 66;
 
     /** 烧炼：原料 → 产物 */
-    public static final int COOK_INPUT_X = 126;
-    public static final int COOK_OUTPUT_X = 184;
+    public static final int COOK_INPUT_X = 66;
+    public static final int COOK_OUTPUT_X = 124;
 
     /** 锻造：模板、基础物品、升级物品 → 产物（三者都必填） */
-    public static final int SMITH_TEMPLATE_X = 126;    public static final int SMITH_BASE_X = 170;
-    public static final int SMITH_ADDITION_X = 214;
-    public static final int SMITH_OUTPUT_X = 286;
+    public static final int SMITH_TEMPLATE_X = 66;    public static final int SMITH_BASE_X = 110;
+    public static final int SMITH_ADDITION_X = 154;
+    public static final int SMITH_OUTPUT_X = 226;
 
     /**
      * 农夫乐事 · 烹饪锅：照原版界面摆成 3×2 材料网格，容器放在网格右侧的第二行。
      *
      * <p>这样材料和产物都在左边，不会跑到右边去跟「获得经验 / 烧制时间」两个输入框打架。
      */
-    public static final int COOK_GRID_X = 126;
+    public static final int COOK_GRID_X = 66;
     public static final int COOK_GRID_Y = 76;
-    public static final int COOK_CONTAINER_X = 198;
+    public static final int COOK_CONTAINER_X = 138;
     public static final int COOK_CONTAINER_Y = 94;
 
     /** 农夫乐事 · 切菜板：材料与工具分开摆，别挤在一起 */
-    public static final int CUT_INPUT_X = 126;
-    public static final int CUT_TOOL_X = 186;
+    public static final int CUT_INPUT_X = 66;
+    public static final int CUT_TOOL_X = 126;
     public static final int CUT_ROW_Y = 94;
 
-    public static final int FARMERS_OUTPUT_X = 230;
+    public static final int FARMERS_OUTPUT_X = 170;
     public static final int FARMERS_OUTPUT_Y = 94;
 
     /**
@@ -116,9 +116,9 @@ public class RecipeEditorMenu extends AbstractContainerMenu {
     public static final int FARMERS_LABEL_Y = 115;
 
     /** 机械动力：材料 3×3 网格（9 格），产物在右侧，额外产物单独排一行 */
-    public static final int CREATE_GRID_X = 126;
+    public static final int CREATE_GRID_X = 66;
     public static final int CREATE_GRID_Y = 76;
-    public static final int CREATE_OUTPUT_X = 230;
+    public static final int CREATE_OUTPUT_X = 170;
     /** 机械动力槽位标注共用的 y（3×3 网格止于 130，所以标在它下面） */
     public static final int CREATE_LABEL_Y = 133;
     /** 处理配方的材料格数（3×3） */
@@ -132,13 +132,13 @@ public class RecipeEditorMenu extends AbstractContainerMenu {
      */
     public static final int SEQ_STEP_COUNT = 6;
     public static final int SEQ_ROW_Y = 76;
-    public static final int SEQ_INPUT_X = 126;
-    public static final int SEQ_TRANSITIONAL_X = 186;
-    public static final int SEQ_OUTPUT_X = 246;
+    public static final int SEQ_INPUT_X = 66;
+    public static final int SEQ_TRANSITIONAL_X = 126;
+    public static final int SEQ_OUTPUT_X = 186;
     /** 失败产物（产物按权重随机，成功率之外的权重给它） */
-    public static final int SEQ_FAIL_X = 306;
+    public static final int SEQ_FAIL_X = 246;
     /** 步骤按钮：6 个并排，宽度压到 46 才排得下 */
-    public static final int SEQ_BUTTON_X0 = 126;
+    public static final int SEQ_BUTTON_X0 = 66;
     public static final int SEQ_BUTTON_STEP = 51;
     public static final int SEQ_BUTTON_Y = 112;
     public static final int SEQ_BUTTON_W = 46;
@@ -146,10 +146,10 @@ public class RecipeEditorMenu extends AbstractContainerMenu {
     /** 步骤材料格在按钮下方的居中偏移 */
     public static final int SEQ_SLOT_INSET = 14;
     /** 循环次数 / 成功率输入框（第一行右侧，失败产物止于 232） */
-    public static final int SEQ_LOOPS_X = 350;
+    public static final int SEQ_LOOPS_X = 290;
     public static final int SEQ_LOOPS_Y = 76;
     public static final int SEQ_LOOPS_W = 36;
-    public static final int SEQ_CHANCE_X = 398;
+    public static final int SEQ_CHANCE_X = 338;
     public static final int SEQ_CHANCE_W = 36;
     /**
      * 机械动力的额外产物行。
@@ -164,11 +164,11 @@ public class RecipeEditorMenu extends AbstractContainerMenu {
     /** 额外产物借用容器里空着的下标（切菜板材料只用 0、1） */
     public static final int EXTRA_OUTPUT_CONTAINER_BASE = 2;
     public static final int EXTRA_ROW_Y = 127;
-    public static final int EXTRA_SLOT_X0 = 122;
+    public static final int EXTRA_SLOT_X0 = 62;
     public static final int EXTRA_SLOT_STEP = 80;
 
-    /** 「物品用标签」开关的位置（在下面那排按钮的最右边） */    public static final int TAG_BUTTON_X = 434;
-    public static final int TAG_BUTTON_Y = 268;
+    /** 「物品用标签」开关的位置（在下面那排按钮的最右边） */    public static final int TAG_BUTTON_X = 374;
+    public static final int TAG_BUTTON_Y = 262;
     public static final int TAG_BUTTON_W = 96;
 
     /**
@@ -177,9 +177,9 @@ public class RecipeEditorMenu extends AbstractContainerMenu {
      * <p>整块上移了 12px：底部状态栏挪到标题栏右侧之后，这里就不用再给状态文字留位置，
      * 背包跟着提上来，窗口高度才收得到 370。
      */
-    public static final int PLAYER_X = 239;
-    public static final int PLAYER_Y = 322;
-    public static final int HOTBAR_Y = 378;
+    public static final int PLAYER_X = 179;
+    public static final int PLAYER_Y = 296;
+    public static final int HOTBAR_Y = 352;
 
     /** 背包的实际 y（序列组装要往下让） */
     public int playerY() {
