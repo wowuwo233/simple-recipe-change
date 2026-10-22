@@ -184,7 +184,8 @@ public enum RecipeType {
     /** 时间输入框上方那行说明 */
     public String timeFieldLabel() {
         if (isSequenced()) {
-            return "循环次数（默认 4）";
+            // 字段只有 36px 宽，标签必须短（"循环次数"刚好 36px，右边还有「成功率」）
+            return "循环次数";
         }
         if (isCreate()) {
             return "处理时间（tick，默认 100）";

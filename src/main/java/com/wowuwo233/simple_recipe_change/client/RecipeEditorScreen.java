@@ -467,8 +467,7 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
                         Component.literal(seqCountLabel()), b -> {
                             this.seqStepCount = this.seqStepCount
                                     % RecipeEditorMenu.SEQ_STEP_COUNT + 1;
-                            refreshButtonStates();
-                            updateWidgetVisibility();
+                            applySeqStepCount();
                         })
                 .bounds(this.leftPos + 172, this.topPos + CONTROLS_Y, 92, 20)
                 .build());
@@ -523,6 +522,7 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
     private void applySlotLayout() {
         // 注意：不能用 menu.getRecipeType() 反写回本地类型——客户端菜单对象更新得比这里晚，
         // 那样会把刚切换的类型直接抹掉，表现为「类型点不动」。
+        this.menu.setSeqStepCount(this.seqStepCount);
         this.menu.applyLayout(this.operation, this.recipeType, this.createMachine);
         // 处理时间的默认值随类型走：原版烧炼 200 tick，机械动力 100 tick，序列组装是循环次数 4
         if (this.timeField != null) {
@@ -682,6 +682,20 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
         return "步骤数：" + this.seqStepCount;
     }
 
+    /**
+     * 步骤数变了之后同步三件事：菜单里的槽位显隐、按钮显隐、以及清掉多出来的格子。
+     *
+     * <p>不清的话，缩到 3 步再把步骤数调回 6，之前塞在第 4~6 步的东西会突然冒出来。
+     */
+    private void applySeqStepCount() {
+        this.menu.setSeqStepCount(this.seqStepCount);
+        for (int i = this.seqStepCount; i < RecipeEditorMenu.SEQ_STEP_COUNT; i++) {
+            setInput(2 + i, null);
+        }
+        refreshButtonStates();
+        updateWidgetVisibility();
+    }
+
     /** 从索引/网络包里的 heat 字段还原步骤类型与步骤数 */
     private void decodeSeqKinds(String encoded) {
         String[] parts = encoded == null || encoded.isBlank() ? new String[0] : encoded.split(",");
@@ -691,6 +705,7 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
             this.seqKinds[i] = i < parts.length && !parts[i].isBlank()
                     ? parts[i].trim() : "deploying";
         }
+        this.menu.setSeqStepCount(this.seqStepCount);
         refreshButtonStates();
     }
 
@@ -1019,6 +1034,10 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
         int inputs = this.menu.inputMenuCount();
         for (int i = 0; i < this.menu.slots.size(); i++) {
             Slot slot = this.menu.slots.get(i);
+            // 序列组装里超出「步骤数」的槽整个不画
+            if (!slot.isActive()) {
+                continue;
+            }
             boolean enabled = !(i < inputs && isDisabledInput(slot.getContainerSlot()));
             int sx = x + slot.x;
             int sy = y + slot.y;

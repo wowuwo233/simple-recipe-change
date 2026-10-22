@@ -223,6 +223,18 @@ public class RecipeEditorMenu extends AbstractContainerMenu {
         }
 
         @Override
+        public boolean isActive() {
+            // 序列组装：超出「步骤数」的步骤槽整个不显示，不然会留下一排没按钮的红框
+            if (recipeType.isSequenced()) {
+                int cell = getContainerSlot();
+                if (cell >= 2 && cell < 2 + SEQ_STEP_COUNT) {
+                    return super.isActive() && cell - 2 < seqStepCount;
+                }
+            }
+            return super.isActive();
+        }
+
+        @Override
         public boolean mayPickup(Player player) {
             return false;
         }
@@ -240,6 +252,8 @@ public class RecipeEditorMenu extends AbstractContainerMenu {
 
     /** 只用来给展示槽当载体，永远保持为空 */
     private final Container placeholder = new SimpleContainer(GRID_SIZE);
+    /** 序列组装的失败产物单独用一个容器：复用 placeholder 的下标会和步骤槽撞车 */
+    private final Container failureSlot = new SimpleContainer(1);
     private final Container output = new SimpleContainer(1);
     private final Player owner;
     private final Inventory playerInventory;
@@ -247,6 +261,17 @@ public class RecipeEditorMenu extends AbstractContainerMenu {
     private Operation operation = Operation.ADD;
     /** 当前配方类型；服务端也要知道，因为不同类型要去不同的配方分类里反查 */
     private RecipeType recipeType = RecipeType.CRAFTING_TABLE;
+    /**
+     * 序列组装用几步（1~6）。
+     *
+     * <p>只有客户端知道，服务端不需要——但它决定「多出来的步骤槽显不显示」，
+     * 所以由客户端在切步骤数时推过来。
+     */
+    private int seqStepCount = SEQ_STEP_COUNT;
+
+    public void setSeqStepCount(int count) {
+        this.seqStepCount = Math.max(1, Math.min(SEQ_STEP_COUNT, count));
+    }
     /** 被替换掉的原配方 ID（仅「修改配方」用） */
     private String sourceRecipeId = "";
     /** 缓存最近一次查到的原版配方 */
@@ -313,9 +338,8 @@ public class RecipeEditorMenu extends AbstractContainerMenu {
                                 SEQ_SLOT_Y), firstTime);
                     }
                     place(new EditorSlot(this.output, 0, SEQ_OUTPUT_X, SEQ_ROW_Y), firstTime);
-                    // 失败产物：排在产物之后的额外产物格（索引 7），内容由客户端维护
-                    place(new DisplaySlot(this.placeholder, EXTRA_OUTPUT_CONTAINER_BASE,
-                            SEQ_FAIL_X, SEQ_ROW_Y), firstTime);
+                    // 失败产物：排在产物之后的额外产物格（索引 9），内容由客户端维护
+                    place(new DisplaySlot(this.failureSlot, 0, SEQ_FAIL_X, SEQ_ROW_Y), firstTime);
                 } else {
                     // 处理配方：材料 3×3（9 格），网格下方是标注行，再下面是额外产物行
                     for (int i = 0; i < CREATE_MATERIAL_SLOTS; i++) {
