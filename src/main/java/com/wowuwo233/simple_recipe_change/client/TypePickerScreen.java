@@ -1,6 +1,7 @@
 package com.wowuwo233.simple_recipe_change.client;
 
 import com.wowuwo233.simple_recipe_change.ModCompat;
+import com.wowuwo233.simple_recipe_change.kubejs.CreateMachine;
 import com.wowuwo233.simple_recipe_change.kubejs.RecipeType;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
@@ -43,8 +44,15 @@ public class TypePickerScreen extends Screen {
     private static final int COLOR_TEXT_DIM = 0xFF9A9A9A;
     private static final int COLOR_ACCENT = 0xFFA8C0D8;
 
-    /** 一行：分组标题（type 为 null）或具体类型 */
-    private record Row(RecipeType.Group group, RecipeType type) {
+    /**
+     * 一行三种：
+     * <ul>
+     *   <li>分组标题：type 与 machine 都为 null</li>
+     *   <li>具体类型：machine 为 null</li>
+     *   <li>机械动力的机器：type 是处理配方，machine 具体机器</li>
+     * </ul>
+     */
+    private record Row(RecipeType.Group group, RecipeType type, CreateMachine machine) {
     }
 
     private final RecipeEditorScreen parent;
@@ -68,13 +76,20 @@ public class TypePickerScreen extends Screen {
             if (!ModCompat.available(group)) {
                 continue;
             }
-            rows.add(new Row(group, null));
+            rows.add(new Row(group, null, null));
             if (!expanded.contains(group)) {
                 continue;
             }
             for (RecipeType type : RecipeType.values()) {
-                if (type.group() == group) {
-                    rows.add(new Row(group, type));
+                if (type.group() != group) {
+                    continue;
+                }
+                rows.add(new Row(group, type, null));
+                // 机械动力的 14 台处理机器挂在「处理配方」下面，点一下直接选中机器
+                if (type == RecipeType.CREATE_PROCESSING) {
+                    for (CreateMachine machine : CreateMachine.values()) {
+                        rows.add(new Row(group, type, machine));
+                    }
                 }
             }
         }
@@ -135,12 +150,18 @@ public class TypePickerScreen extends Screen {
                     graphics.drawString(this.font, open ? "▾ " + row.group().label()
                             : "▸ " + row.group().label(), x + 4, y + 5, COLOR_ACCENT, false);
                 } else {
-                    boolean current = row.type() == this.parent.currentType();
+                    boolean machineRow = row.machine() != null;
+                    boolean current = machineRow
+                            ? this.parent.currentType() == row.type()
+                                    && this.parent.currentMachine() == row.machine()
+                            : row.type() == this.parent.currentType()
+                                    && !this.parent.currentType().isCreate();
                     int color = current ? COLOR_ROW_CURRENT
                             : hover ? COLOR_ROW_HOVER : COLOR_ROW;
                     graphics.fill(x, y, x + width, y + height - 1, color);
-                    graphics.drawString(this.font, "    " + row.type().label(), x + 4, y + 4,
-                            current ? COLOR_TEXT : COLOR_TEXT_DIM, false);
+                    String label = machineRow ? row.machine().label() : row.type().label();
+                    graphics.drawString(this.font, (machineRow ? "        " : "    ") + label,
+                            x + 4, y + 4, current ? COLOR_TEXT : COLOR_TEXT_DIM, false);
                     if (current) {
                         graphics.drawString(this.font, "当前", x + width - 26, y + 4,
                                 COLOR_TEXT, false);
@@ -176,7 +197,7 @@ public class TypePickerScreen extends Screen {
                 return true;
             }
             if (inside && row.type() != null) {
-                this.parent.applyType(row.type());
+                this.parent.applyType(row.type(), row.machine());
                 if (this.minecraft != null) {
                     this.minecraft.setScreen(this.parent);
                 }

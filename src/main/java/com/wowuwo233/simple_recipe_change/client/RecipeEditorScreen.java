@@ -361,13 +361,9 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
                                 this.minecraft.setScreen(new TypePickerScreen(this));
                             }
                         })
-                .bounds(this.leftPos + 37, this.topPos + CONTROLS_Y, 96, 20)
+                .bounds(this.leftPos + 37, this.topPos + CONTROLS_Y, 196, 20)
                 .build());
 
-        this.groupButton = this.addRenderableWidget(Button.builder(
-                        Component.literal(groupLabel()), b -> cycleGroup())
-                .bounds(this.leftPos + 141, this.topPos + CONTROLS_Y, 96, 20)
-                .build());
 
         this.shapelessButton = this.addRenderableWidget(Button.builder(
                         Component.literal(shapelessLabel()), b -> {
@@ -555,6 +551,11 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
         refreshButtonStates();
     }
 
+    /** 当前机械动力机器，供类型选择界面高亮 */
+    public CreateMachine currentMachine() {
+        return this.createMachine;
+    }
+
     /** 当前类型，供类型选择界面高亮 */
     public RecipeType currentType() {
         return this.recipeType;
@@ -562,7 +563,18 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
 
     /** 从选择界面切过来：换类型并重建槽位（和 cycleSecondary 走同一条路） */
     public void applyType(RecipeType type) {
-        if (type == null || type == this.recipeType) {
+        applyType(type, this.createMachine);
+    }
+
+    /** 带机器的版本：机械动力的 14 台处理机器在类型选择界面里直接选 */
+    public void applyType(RecipeType type, CreateMachine machine) {
+        if (type == null) {
+            return;
+        }
+        if (machine != null) {
+            this.createMachine = machine;
+        }
+        if (type == this.recipeType && machine == null) {
             return;
         }
         this.recipeType = type;
@@ -631,11 +643,6 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
         if (this.secondaryButton != null) {
             this.secondaryButton.setMessage(Component.literal(secondaryLabel()));
         }
-        if (this.groupButton != null) {
-            // 没装农夫乐事 / KubeJSDelight 时只有一个分组，按钮置灰
-            this.groupButton.active = ModCompat.hasMultipleGroups();
-            this.groupButton.setMessage(Component.literal(groupLabel()));
-        }
         if (this.tagButton != null) {
             this.tagButton.setMessage(Component.literal(tagButtonLabel()));
         }
@@ -649,6 +656,8 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
         boolean create = this.recipeType.isCreate();
         boolean sequenced = this.recipeType.isSequenced();
         if (this.shapelessButton != null) {
+            // 机械动力的机器不再用按钮切，改在「类型选择」界面里选，这里整个隐藏
+            this.shapelessButton.visible = !this.recipeType.isCreate();
             // Create 下「机器」始终可点；序列组装的步骤在下面单独选，这里不用
             this.shapelessButton.active = !sequenced && (create || (adding && crafting));
             this.shapelessButton.setMessage(Component.literal(shapelessLabel()));
@@ -870,7 +879,7 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
                 button.visible = visible;
             }
         }
-        for (Button button : new Button[]{secondaryButton, groupButton, shapelessButton, mirrorButton,
+        for (Button button : new Button[]{secondaryButton, shapelessButton, mirrorButton,
                 saveButton, reloadButton, clearButton}) {
             if (button != null) {
                 button.visible = visible;
@@ -940,6 +949,8 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
         }
         // 序列组装下「机器 / 热度」没意义，藏起来把位置让给「步骤数」
         if (this.shapelessButton != null) {
+            // 机械动力的机器不再用按钮切，改在「类型选择」界面里选，这里整个隐藏
+            this.shapelessButton.visible = !this.recipeType.isCreate();
             this.shapelessButton.visible = visible && !sequenced;
         }
         if (this.mirrorButton != null) {
