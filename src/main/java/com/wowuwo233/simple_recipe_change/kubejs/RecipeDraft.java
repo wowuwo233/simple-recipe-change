@@ -44,6 +44,48 @@ public record RecipeDraft(
     public static final int DEFAULT_COOKING_TIME = 200;
 
     /**
+     * 类型专用数值参数。
+     *
+     * <p>有几个字段是「借」的，这里统一收口，别在各处自己解析：
+     * <ul>
+     *   <li>热力膨胀的催化剂 / 药水扩散：参数存在 {@link #heat()} 里，逗号分隔</li>
+     *   <li>机械动力序列组装：{@link #xp()} 存成功率，{@link #cookingTime()} 存循环次数</li>
+     * </ul>
+     *
+     * <p>之所以不拆成独立字段，是因为这些值要跟着索引 JSON 和网络包走，
+     * 改结构就得写存档迁移。等有需要再动，现在先保证「读的地方只有一处」。
+     *
+     * @param count    要几个
+     * @param defaults 缺省值，缺项或解析失败就用它
+     */
+    public double[] params(int count, double[] defaults) {
+        double[] out = defaults.clone();
+        String raw = heat == null ? "" : heat.trim();
+        if (raw.isEmpty()) {
+            return out;
+        }
+        String[] parts = raw.split(",");
+        for (int i = 0; i < count && i < parts.length; i++) {
+            try {
+                out[i] = Double.parseDouble(parts[i].trim());
+            } catch (NumberFormatException ignored) {
+                // 填错就保留默认值
+            }
+        }
+        return out;
+    }
+
+    /** 序列组装的循环次数（借 cookingTime） */
+    public int loops() {
+        return Math.max(1, cookingTime);
+    }
+
+    /** 序列组装的组装成功率（借 xp） */
+    public double successChance() {
+        return xp <= 0D ? 100D : Math.min(100D, xp);
+    }
+
+    /**
      * 切菜板的额外产物。
      *
      * @param item   物品 ID

@@ -258,8 +258,9 @@ public final class KubeJsWriter {
         }
         sb.append("  ],\n");
         sb.append("  ").append(output).append(",\n");
-        sb.append("  ").append(formatNumber(d.xp())).append(",\n");
-        sb.append("  ").append(d.cookingTime());
+        // 序列组装：xp 位置写成功率，cookingTime 位置写循环次数
+        sb.append("  ").append(formatNumber(d.successChance())).append(",\n");
+        sb.append("  ").append(d.loops());
         if (container != null) {
             sb.append(",\n  '").append(container).append("'\n");
         } else {
@@ -415,7 +416,7 @@ public final class KubeJsWriter {
                 sb.append("  ").append(Math.max(1, d.cookingTime())).append(")");
             }
             case "pulverizer_catalyst", "smelter_catalyst", "insolator_catalyst" -> {
-                double[] p = params(d, 4, new double[]{1D, 1D, 1D, 0.1D});
+                double[] p = d.params(4, new double[]{1D, 1D, 1D, 0.1D});
                 sb.append("  ").append(need(cell.apply(0), "催化剂材料")).append(",\n");
                 sb.append("  ").append(formatNumber(p[0])).append(",\n");
                 sb.append("  ").append(formatNumber(p[1])).append(",\n");
@@ -423,7 +424,7 @@ public final class KubeJsWriter {
                 sb.append("  ").append(formatNumber(p[3])).append(")");
             }
             case "potion_diffuser_boost" -> {
-                double[] p = params(d, 3, new double[]{1D, 0D, 1D});
+                double[] p = d.params(3, new double[]{1D, 0D, 1D});
                 sb.append("  ").append(need(cell.apply(0), "材料")).append(",\n");
                 sb.append("  ").append(formatNumber(p[0])).append(",\n");
                 sb.append("  ").append((int) p[1]).append(",\n");
@@ -445,24 +446,6 @@ public final class KubeJsWriter {
                 sb.append("  ").append(formatNumber(d.cookingTime() <= 0 ? 1D : d.cookingTime())).append(")");
             }
         }
-    }
-
-    /** 从 heat 里读逗号分隔的参数，缺的用默认值补 */
-    private static double[] params(RecipeDraft d, int count, double[] defaults) {
-        double[] out = defaults.clone();
-        String raw = d.heat() == null ? "" : d.heat().trim();
-        if (raw.isEmpty()) {
-            return out;
-        }
-        String[] parts = raw.split(",");
-        for (int i = 0; i < count && i < parts.length; i++) {
-            try {
-                out[i] = Double.parseDouble(parts[i].trim());
-            } catch (NumberFormatException ignored) {
-                // 填错就用默认值
-            }
-        }
-        return out;
     }
 
     private static String need(String value, String what) {
@@ -685,7 +668,7 @@ public final class KubeJsWriter {
         }
         sb.append("  ]\n");
         sb.append(").transitionalItem('").append(transitional).append("')");
-        sb.append(".loops(").append(Math.max(1, d.cookingTime())).append(")");
+        sb.append(".loops(").append(d.loops()).append(")");
     }
 
     private static String firstNonBlank(List<String> cells, String error) {
