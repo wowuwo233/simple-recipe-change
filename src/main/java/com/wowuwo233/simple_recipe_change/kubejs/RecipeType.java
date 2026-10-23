@@ -143,6 +143,13 @@ public enum RecipeType {
         this.gridHeight = gridHeight;
     }
 
+    private RecipeTypeSpec specCache;
+
+    /** 元数据表（槽位标签 / 方法名 / 路径 / 默认值），见 {@link RecipeTypeSpec} */
+    public RecipeTypeSpec spec() {
+        return RecipeTypeSpec.of(this);
+    }
+
     public String id() {
         return id;
     }
@@ -185,18 +192,7 @@ public enum RecipeType {
 
     /** 输入槽的中文名，下标与 {@code cells} 的前几项一一对应 */
     public String[] inputLabels() {
-        return switch (this) {
-            case CRAFTING_TABLE -> new String[]{"合成格（3×3）"};
-            case INVENTORY -> new String[]{"合成格（2×2）"};
-            case FURNACE, BLAST_FURNACE, SMOKER, CAMPFIRE -> new String[]{"原料"};
-            case SMITHING -> new String[]{"模板", "基础物品", "升级物品"};
-            case FARMERS_COOKING -> new String[]{"材料", "材料", "材料", "材料", "材料", "材料", "容器"};
-            case FARMERS_CUTTING -> new String[]{"材料", "工具"};
-            case CREATE_PROCESSING -> new String[]{"材料"};
-            case CREATE_SEQUENCED -> new String[]{"输入物品", "过渡物品",
-                    "步骤 1", "步骤 2", "步骤 3", "步骤 4", "步骤 5", "步骤 6"};
-            default -> new String[]{"材料"};
-        };
+        return spec().inputLabels();
     }
 
     public String outputLabel() {
@@ -209,7 +205,7 @@ public enum RecipeType {
      * <p>只有原版烧炼和农夫乐事烹饪锅有；机械动力的处理配方没有经验。
      */
     public boolean hasCookingSettings() {
-        return category == Category.COOKING || this == FARMERS_COOKING || isThermal();
+        return spec().cookingSettings();
     }
 
     /**
@@ -218,26 +214,12 @@ public enum RecipeType {
      * <p>机械动力也要，但含义不同——所以字段名必须随类型变，见 {@link #timeFieldLabel()}。
      */
     public boolean hasTimeField() {
-        return hasCookingSettings() || isCreate() || isThermal();
+        return spec().timeField();
     }
 
     /** 时间输入框上方那行说明 */
     public String timeFieldLabel() {
-        if (isSequenced()) {
-            // 字段只有 36px 宽，标签必须短（"循环次数"刚好 36px，右边还有「成功率」）
-            return "循环次数";
-        }
-        if (isCreate()) {
-            return "处理时间（tick，默认 100）";
-        }
-        if (thermalParamCount() > 0) {
-            return "参数（逗号分隔，顺序见提示）";
-        }
-        if (isThermal()) {
-            return "能耗（RF，默认 0）";
-        }
-        // 营火是 600，熔炉/高炉/烟熏炉是 200——默认值必须跟着类型说，不然玩家会以为写错了
-        return "烧制时间（tick，默认 " + defaultProcessingTime() + "）";
+        return spec().timeLabel();
     }
 
     /** 产物是否带概率（只有切菜板有） */
@@ -299,12 +281,7 @@ public enum RecipeType {
 
     /** 处理时间默认值：Create 100 tick、营火 600 tick、其余（熔炉等）200 tick；序列组装这里是循环次数默认 4 */
     public int defaultProcessingTime() {
-        return switch (this) {
-            case CREATE_PROCESSING -> 100;
-            case CREATE_SEQUENCED -> 4;
-            case CAMPFIRE -> 600;
-            default -> isThermal() ? 0 : 200;
-        };
+        return spec().defaultTime();
     }
 
     /** 需不需要「热度」这个参数（只有 Create 的处理配方有；序列组装没有） */
@@ -328,21 +305,7 @@ public enum RecipeType {
      * <p>合成类由「有序/无序」开关决定，这里返回 shaped 作为默认。
      */
     public String kubeJsMethod() {
-        return switch (this) {
-            case CRAFTING_TABLE, INVENTORY -> "shaped";
-            case FURNACE -> "smelting";
-            case BLAST_FURNACE -> "blasting";
-            case SMOKER -> "smoking";
-            case CAMPFIRE -> "campfireCooking";
-            case SMITHING -> "smithing";
-            case FARMERS_COOKING -> "cooking";
-            case FARMERS_CUTTING -> "cutting";
-            // Create 的真实方法名由具体机器决定，见 CreateMachine#eventPath
-            case CREATE_PROCESSING -> "processing";
-            case CREATE_SEQUENCED -> "sequenced_assembly";
-            // 热力膨胀：方法名就是配方类型路径，比如 thermal:pulverizer -> pulverizer
-            default -> id.startsWith("thermal_") ? id.substring("thermal_".length()) : id;
-        };
+        return spec().kubeJsMethod();
     }
 
     /**
@@ -357,16 +320,7 @@ public enum RecipeType {
      * 真正用的是 {@link CreateMachine#eventPath()}。
      */
     public String eventPath() {
-        if (isFarmers()) {
-            return "event.recipes.farmersdelight." + kubeJsMethod();
-        }
-        if (isCreate()) {
-            return "event.recipes.create." + kubeJsMethod();
-        }
-        if (isThermal()) {
-            return "event.recipes.thermal." + kubeJsMethod();
-        }
-        return "event." + kubeJsMethod();
+        return spec().eventPath();
     }
 
     /** 下一个类型，只在同一分组内循环 */
