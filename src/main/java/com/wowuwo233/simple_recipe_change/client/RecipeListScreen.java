@@ -162,6 +162,12 @@ public class RecipeListScreen extends Screen {
                 graphics.drawString(this.font, title, left + 30, rowY + 3, COLOR_TEXT, false);
 
                 String sub = entry.operation().label() + " · " + entry.fileName();
+                // 备注显示在行右侧的空白处（原来那里是空的）
+                String note = entry.note() == null ? "" : entry.note().trim();
+                if (!note.isEmpty()) {
+                    graphics.drawString(this.font, trim(note, 60), left + 300, rowY + 3,
+                            COLOR_TEXT_DIM, false);
+                }
                 graphics.drawString(this.font, trim(sub, 150), left + 30, rowY + 13,
                         COLOR_TEXT_DIM, false);
             }

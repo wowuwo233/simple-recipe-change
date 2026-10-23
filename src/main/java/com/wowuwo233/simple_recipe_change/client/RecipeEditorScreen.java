@@ -1796,16 +1796,19 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
                 FLUID_SPRITES.computeIfAbsent(id, key -> this.minecraft
                         .getTextureAtlas(net.minecraft.world.inventory.InventoryMenu.BLOCK_ATLAS)
                         .apply(ext.getStillTexture()));
-        // 画成「储罐」的样子：深色外框 + 竖长条的流体，和机器 UI 里的水槽一致
-        graphics.fill(x + 1, y + 1, x + 17, y + 17, 0xFF2A2A2A);
-        graphics.blit(x + 4, y + 2, 0, 10, 14, sprite);
+        // 竖长条储罐：灰底 + 三道暗红线（对齐机器 UI 里的液位刻度），流体填在红线之间
+        int tankH = 30;
+        graphics.fill(x + 1, y, x + 15, y + tankH, 0xFF3A3A3A);          // 外框
+        graphics.fill(x + 2, y + 1, x + 14, y + tankH - 1, 0xFF8B8B8B);  // 罐体
+        graphics.blit(x + 3, y + 4, 0, 10, tankH - 8, sprite);
         int tint = ext.getTintColor();
         if ((tint & 0xFFFFFF) != 0xFFFFFF) {
-            graphics.fill(x + 4, y + 2, x + 14, y + 16, 0x40000000 | (tint & 0xFFFFFF));
+            graphics.fill(x + 3, y + 4, x + 13, y + tankH - 4, 0x40000000 | (tint & 0xFFFFFF));
         }
-        // 顶/底两道高光，读起来像个玻璃槽
-        graphics.fill(x + 4, y + 2, x + 14, y + 3, 0x60FFFFFF);
-        graphics.fill(x + 4, y + 15, x + 14, y + 16, 0x40000000);
+        // 三道刻度线
+        graphics.fill(x + 2, y + tankH / 4, x + 12, y + tankH / 4 + 1, 0xFF8B1A1A);
+        graphics.fill(x + 2, y + tankH / 2, x + 14, y + tankH / 2 + 1, 0xFF8B1A1A);
+        graphics.fill(x + 2, y + tankH * 3 / 4, x + 12, y + tankH * 3 / 4 + 1, 0xFF8B1A1A);
         if (!amount.isEmpty()) {
             // 16px 的格子放不下 4 位数，缩到一半画，右下角对齐
             graphics.pose().pushPose();
@@ -1819,10 +1822,13 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
 
     /** 空储罐：深色罐体 + 顶部高光 + 一个「液」字提示 */
     private void drawEmptyTank(GuiGraphics graphics, int x, int y) {
-        graphics.fill(x + 1, y + 1, x + 17, y + 17, 0xFF2A2A2A);
-        graphics.fill(x + 4, y + 2, x + 14, y + 16, 0xFF1A1A1A);
-        graphics.fill(x + 4, y + 2, x + 14, y + 3, 0x40FFFFFF);
-        graphics.drawString(this.font, "液", x + 6, y + 5, 0xFF6A8FB5, false);
+        int tankH = 30;
+        graphics.fill(x + 1, y, x + 15, y + tankH, 0xFF3A3A3A);
+        graphics.fill(x + 2, y + 1, x + 14, y + tankH - 1, 0xFF8B8B8B);
+        // 空罐也画三道刻度线，和装液体时同一个样子
+        graphics.fill(x + 2, y + tankH / 4, x + 12, y + tankH / 4 + 1, 0xFF8B1A1A);
+        graphics.fill(x + 2, y + tankH / 2, x + 14, y + tankH / 2 + 1, 0xFF8B1A1A);
+        graphics.fill(x + 2, y + tankH * 3 / 4, x + 12, y + tankH * 3 / 4 + 1, 0xFF8B1A1A);
     }
 
     /** JEI 拖拽流体：写成 fluid:命名空间:路径:数量，格子里显示流体贴图 */

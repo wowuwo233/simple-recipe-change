@@ -66,12 +66,7 @@ public class TypePickerScreen extends Screen {
         super(Component.literal("选择配方类型"));
         this.parent = parent;
         // 默认全折叠，但把当前类型所在的分组展开
-        RecipeType current = parent.currentType();
-        if (current != null && ModCompat.available(current.group())) {
-            expanded.add(current.group());
-        }
-        // 当前就在用某台机器时，进来就能看到是哪台
-        this.machinesOpen = current == RecipeType.CREATE_PROCESSING;
+        // 默认全部折叠：打开只看到四个分组标题，想看哪组自己点
     }
 
     /** 按当前展开状态算出要显示的行 */
