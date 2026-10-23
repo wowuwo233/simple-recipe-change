@@ -4,6 +4,9 @@ import com.wowuwo233.simple_recipe_change.kubejs.CreateMachine;
 import com.wowuwo233.simple_recipe_change.kubejs.Operation;
 import com.wowuwo233.simple_recipe_change.kubejs.RecipeIndexEntry;
 import com.wowuwo233.simple_recipe_change.kubejs.RecipeType;
+import com.wowuwo233.simple_recipe_change.menu.canvas.CanvasContext;
+import com.wowuwo233.simple_recipe_change.menu.canvas.CanvasRegistry;
+import com.wowuwo233.simple_recipe_change.menu.canvas.SlotPlacer;
 import com.wowuwo233.simple_recipe_change.network.ModNetwork;
 import com.wowuwo233.simple_recipe_change.server.VanillaRecipeLookup;
 import net.minecraft.core.Holder;
@@ -302,102 +305,31 @@ public class RecipeEditorMenu extends AbstractContainerMenu {
     public void layoutSlots(boolean firstTime) {
         this.slots.clear();
 
-        switch (recipeType.category()) {
-            case CRAFTING -> {
-                boolean adding = operation == Operation.ADD;
-                int gridX = adding ? ADD_GRID_X : MOD_GRID_X;
-                int outX = adding ? ADD_OUTPUT_X : MOD_OUTPUT_X;
-                for (int row = 0; row < 3; row++) {
-                    for (int col = 0; col < 3; col++) {
-                        place(new DisplaySlot(this.placeholder, row * 3 + col,
-                                gridX + col * SLOT_SIZE, CRAFT_GRID_Y + row * SLOT_SIZE), firstTime);
+        // 槽位坐标交给画布：每种类型一个类，见 menu/canvas
+        CanvasRegistry.of(recipeType).layout(
+                new CanvasContext(recipeType, operation, extraOutputCount()),
+                new SlotPlacer() {
+                    @Override
+                    public void input(int index, int x, int y) {
+                        place(new DisplaySlot(placeholder, index, x, y), firstTime);
                     }
-                }
-                place(new EditorSlot(this.output, 0, outX, ROW_Y), firstTime);
-            }
-            case COOKING -> {
-                place(new DisplaySlot(this.placeholder, 0, COOK_INPUT_X, ROW_Y), firstTime);
-                place(new EditorSlot(this.output, 0, COOK_OUTPUT_X, ROW_Y), firstTime);
-            }
-            case SMITHING -> {
-                place(new DisplaySlot(this.placeholder, 0, SMITH_TEMPLATE_X, ROW_Y), firstTime);
-                place(new DisplaySlot(this.placeholder, 1, SMITH_BASE_X, ROW_Y), firstTime);
-                place(new DisplaySlot(this.placeholder, 2, SMITH_ADDITION_X, ROW_Y), firstTime);
-                place(new EditorSlot(this.output, 0, SMITH_OUTPUT_X, ROW_Y), firstTime);
-            }
-            case CREATE -> {
-                if (recipeType.isSequenced()) {
-                    // 输入 → 过渡物品 一行，下面 4 个步骤（槽位由客户端画按钮）。
-                    // 产物槽必须排在<b>所有输入槽之后</b>：outputMenuIndex() 按「输入槽数量」
-                    // 推算它的下标，插在中间会让产物标签画到步骤槽上去。
-                    place(new DisplaySlot(this.placeholder, 0, SEQ_INPUT_X, SEQ_ROW_Y), firstTime);
-                    place(new DisplaySlot(this.placeholder, 1, SEQ_TRANSITIONAL_X, SEQ_ROW_Y), firstTime);
-                    for (int i = 0; i < SEQ_STEP_COUNT; i++) {
-                        place(new DisplaySlot(this.placeholder, 2 + i,
-                                SEQ_BUTTON_X0 + i * SEQ_BUTTON_STEP + SEQ_SLOT_INSET,
-                                SEQ_SLOT_Y), firstTime);
-                    }
-                    place(new EditorSlot(this.output, 0, SEQ_OUTPUT_X, SEQ_ROW_Y), firstTime);
-                    // 失败产物：排在产物之后的额外产物格（索引 9），内容由客户端维护
-                    place(new DisplaySlot(this.failureSlot, 0, SEQ_FAIL_X, SEQ_ROW_Y), firstTime);
-                } else {
-                    // 处理配方：材料 3×3（9 格），网格下方是标注行，再下面是额外产物行
-                    for (int i = 0; i < CREATE_MATERIAL_SLOTS; i++) {
-                        place(new DisplaySlot(this.placeholder, i,
-                                CREATE_GRID_X + (i % 3) * SLOT_SIZE,
-                                CREATE_GRID_Y + (i / 3) * SLOT_SIZE), firstTime);
-                    }
-                    place(new EditorSlot(this.output, 0, CREATE_OUTPUT_X,
-                            CREATE_GRID_Y + SLOT_SIZE), firstTime);
 
-                    int extra = extraOutputCount();
-                    for (int i = 0; i < extra; i++) {
-                        place(new DisplaySlot(this.placeholder, EXTRA_OUTPUT_CONTAINER_BASE + i,
-                                EXTRA_SLOT_X0 + i * EXTRA_SLOT_STEP, CREATE_EXTRA_ROW_Y), firstTime);
+                    @Override
+                    public void output(int x, int y) {
+                        place(new EditorSlot(output, 0, x, y), firstTime);
                     }
-                }
-            }
-            case THERMAL -> {
-                // 热力膨胀：和机械动力处理配方同一套摆法（3×3 材料 + 产物 + 副产物行）
-                for (int i = 0; i < CREATE_MATERIAL_SLOTS; i++) {
-                    place(new DisplaySlot(this.placeholder, i,
-                            CREATE_GRID_X + (i % 3) * SLOT_SIZE,
-                            CREATE_GRID_Y + (i / 3) * SLOT_SIZE), firstTime);
-                }
-                place(new EditorSlot(this.output, 0, CREATE_OUTPUT_X,
-                        CREATE_GRID_Y + SLOT_SIZE), firstTime);
-                int extraThermal = extraOutputCount();
-                for (int i = 0; i < extraThermal; i++) {
-                    place(new DisplaySlot(this.placeholder, EXTRA_OUTPUT_CONTAINER_BASE + i,
-                            EXTRA_SLOT_X0 + i * EXTRA_SLOT_STEP, CREATE_EXTRA_ROW_Y), firstTime);
-                }
-            }
-            case FARMERS -> {
-                if (recipeType == RecipeType.FARMERS_COOKING) {
-                    // 3×2 材料网格（下标 0..5，行优先），照原版烹饪锅的样子
-                    for (int i = 0; i < 6; i++) {
-                        place(new DisplaySlot(this.placeholder, i,
-                                COOK_GRID_X + (i % 3) * SLOT_SIZE,
-                                COOK_GRID_Y + (i / 3) * SLOT_SIZE), firstTime);
-                    }
-                    // 容器单独放网格下面一行（下标 6，可留空）
-                    place(new DisplaySlot(this.placeholder, 6,
-                            COOK_CONTAINER_X, COOK_CONTAINER_Y), firstTime);
-                } else {
-                    // 切菜板：材料 0、工具 1，分开摆
-                    place(new DisplaySlot(this.placeholder, 0, CUT_INPUT_X, CUT_ROW_Y), firstTime);
-                    place(new DisplaySlot(this.placeholder, 1, CUT_TOOL_X, CUT_ROW_Y), firstTime);
-                }
-                place(new EditorSlot(this.output, 0, FARMERS_OUTPUT_X, FARMERS_OUTPUT_Y), firstTime);
 
-                // 额外产物只有切菜板有，排在下面一行（纯展示槽，内容由客户端维护）
-                int extra = extraOutputCount();
-                for (int i = 0; i < extra; i++) {
-                    place(new DisplaySlot(this.placeholder, EXTRA_OUTPUT_CONTAINER_BASE + i,
-                            EXTRA_SLOT_X0 + i * EXTRA_SLOT_STEP, EXTRA_ROW_Y), firstTime);
-                }
-            }
-        }
+                    @Override
+                    public void extra(int index, int x, int y) {
+                        place(new DisplaySlot(placeholder, EXTRA_OUTPUT_CONTAINER_BASE + index,
+                                x, y), firstTime);
+                    }
+
+                    @Override
+                    public void failure(int x, int y) {
+                        place(new DisplaySlot(failureSlot, 0, x, y), firstTime);
+                    }
+                });
 
         for (int row = 0; row < 3; row++) {
             for (int col = 0; col < 9; col++) {
