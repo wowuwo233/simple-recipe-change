@@ -64,7 +64,7 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
     // 版面纵坐标
     private static final int MODE_Y = 22;
     private static final int SEARCH_Y = 46;
-    private static final int FOUND_Y = 196;
+    private static final int FOUND_Y = 168;
     private static final int CONTROLS_Y = 200;
     private static final int LABEL_Y = 226;
     /** 配方名与文件名并排时各自的宽度：ID 可能很长，给宽一点 */
@@ -1256,10 +1256,10 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
         }
         if (!this.found) {
             String hint = outputHasItem() ? "未找到该物品的原版配方" : "把要处理的物品放进产物格";
-            graphics.drawString(this.font, hint, 12, FOUND_Y, COLOR_TEXT_DIM, false);
+            graphics.drawString(this.font, hint, 200, FOUND_Y, COLOR_TEXT_DIM, false);
             return;
         }
-        graphics.drawString(this.font, "原版配方：" + this.foundSummary, 12, FOUND_Y,
+        graphics.drawString(this.font, "原版配方：" + this.foundSummary, 200, FOUND_Y,
                 COLOR_LABEL, false);
     }
 
