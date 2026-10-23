@@ -377,6 +377,9 @@ public final class VanillaRecipeLookup {
             if (type == RecipeType.FARMERS_CUTTING) {
                 return fromCutting(recipe, access);
             }
+            if (type.isThermal()) {
+                return fromThermal(recipe, access, type);
+            }
             if (type == RecipeType.FARMERS_COOKING) {
                 return fromCookingPot(recipe, access);
             }
@@ -431,6 +434,15 @@ public final class VanillaRecipeLookup {
             }
             return CreateMachine.byId(path) != null ? RecipeType.CREATE_PROCESSING : null;
         }
+        if ("thermal".equals(ns)) {
+            // 我们的类型 id 就是 thermal_<配方路径>，直接按名字对上
+            for (RecipeType candidate : RecipeType.values()) {
+                if (candidate.isThermal() && candidate.id().equals("thermal_" + path)) {
+                    return candidate;
+                }
+            }
+            return null;
+        }
         return null;
     }
 
@@ -438,6 +450,29 @@ public final class VanillaRecipeLookup {
     public static String typeIdOf(Recipe<?> recipe) {
         ResourceLocation key = BuiltInRegistries.RECIPE_TYPE.getKey(recipe.getType());
         return key == null ? "?" : key.toString();
+    }
+
+    /**
+     * 热力膨胀：材料 + 产物。
+     *
+     * <p>用原版 {@code getIngredients() / getResultItem()} 取，所以 16 台基础机器、
+     * 燃料、催化剂这些只要实现了标准接口就都能读出来；读不到的（比如副产物、参数串）
+     * 留空，玩家在界面上补。
+     */
+    private static Found fromThermal(Recipe<?> recipe, RegistryAccess access, RecipeType type) {
+        List<String> cells = blankCells();
+        Set<String> distinct = new LinkedHashSet<>();
+        List<Ingredient> ingredients = recipe.getIngredients();
+        for (int i = 0; i < 9 && i < ingredients.size(); i++) {
+            String id = describe(ingredients.get(i));
+            cells.set(i, id);
+            if (id != null) {
+                distinct.add(id);
+            }
+        }
+        ItemStack result = recipe.getResultItem(access);
+        return build(recipe.getId(), type, false, cells, distinct, result, 0D,
+                RecipeDraft.DEFAULT_COOKING_TIME);
     }
 
     /** 农夫乐事 · 切菜板：材料 + 工具 + 若干产物（带概率） */
