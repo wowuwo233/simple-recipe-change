@@ -1705,6 +1705,21 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
         return slotIndex == this.menu.outputMenuIndex();
     }
 
+    /** JEI 拖拽流体：写成 fluid:命名空间:路径:数量，格子里显示蓝色 F 块 */
+    public void acceptGhostFluidDrop(int slotIndex, String fluidId, int amount) {
+        if (fluidId == null || fluidId.isBlank() || slotIndex < 0
+                || slotIndex >= this.menu.inputMenuCount()) {
+            return;
+        }
+        int cell = this.menu.slots.get(slotIndex).getContainerSlot();
+        if (isDisabledInput(cell)) {
+            return;
+        }
+        String value = "fluid:" + fluidId + ":" + Math.max(1, amount);
+        setInput(cell, value);
+        this.lastPickedItem = value;
+    }
+
     /** JEI 拖拽落下：输入格直接写字符串，产物格让服务端换成这个物品 */
     public void acceptGhostDrop(int slotIndex, ItemStack stack) {
         String id = itemId(stack);

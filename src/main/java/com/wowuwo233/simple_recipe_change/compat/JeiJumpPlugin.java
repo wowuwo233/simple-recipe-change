@@ -24,6 +24,9 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.inventory.Slot;
+import net.minecraft.world.level.material.Fluid;
+import net.minecraftforge.fluids.FluidStack;
+import net.minecraftforge.registries.ForgeRegistries;
 import net.minecraft.world.item.crafting.Recipe;
 import net.minecraft.client.renderer.Rect2i;
 
@@ -90,8 +93,10 @@ public class JeiJumpPlugin implements IModPlugin {
                                                                ITypedIngredient<I> ingredient,
                                                                boolean doStart) {
                         List<Target<I>> targets = new ArrayList<>();
-                        if (!(ingredient.getIngredient() instanceof ItemStack stack)
-                                || stack.isEmpty()) {
+                        Object raw = ingredient.getIngredient();
+                        boolean isItem = raw instanceof ItemStack stack && !stack.isEmpty();
+                        boolean isFluid = raw instanceof FluidStack fluid && !fluid.isEmpty();
+                        if (!isItem && !isFluid) {
                             return targets;
                         }
                         List<Slot> slots = screen.getMenu().slots;
@@ -113,6 +118,10 @@ public class JeiJumpPlugin implements IModPlugin {
                                 public void accept(I value) {
                                     if (value instanceof ItemStack dropped) {
                                         screen.acceptGhostDrop(index, dropped);
+                                    } else if (value instanceof FluidStack fluid) {
+                                        screen.acceptGhostFluidDrop(index,
+                                                ForgeRegistries.FLUIDS.getKey(fluid.getFluid()).toString(),
+                                                fluid.getAmount());
                                     }
                                 }
                             });

@@ -348,7 +348,7 @@ public final class KubeJsWriter {
                 continue;
             }
             String item = extra.count() > 1 ? extra.count() + "x " + extra.item() : extra.item();
-            results.add("'" + item + "'");
+            results.add(renderIngredient(item));
         }
 
         sb.append(machine.eventPath()).append("(\n");
@@ -359,7 +359,7 @@ public final class KubeJsWriter {
         sb.append("  ],\n");
         sb.append("  [\n");
         for (String ing : ingredients) {
-            sb.append("    '").append(ing).append("',\n");
+            sb.append("    ").append(renderIngredient(ing)).append(",\n");
         }
         sb.append("  ]\n");
         sb.append(")");
