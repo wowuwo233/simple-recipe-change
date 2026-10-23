@@ -9,22 +9,25 @@ import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
 
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
 
 /**
- * 配方类型选择界面。
+ * 配方类型选择界面（分组可折叠）。
  *
- * <p>以前「分组」「类型」是两个循环按钮，装的热力膨胀有 32 个类型，切一次要按三十多下。
- * 现在点一下按钮打开这个界面，按分组列出来，点哪个用哪个。
+ * <p>以前「分组」「类型」是两个循环按钮，热力膨胀 32 个类型要按三十多下。
+ * 现在点开这个界面，按分组折叠展示：点分组标题展开/收起，点具体类型切换。
  *
- * <p>只列当前整合包装了的分组（见 {@link ModCompat#available}），没装的模组不会出现。
+ * <p><b>默认全部折叠</b>，只展开当前类型所在的分组——这样打开就能看到自己在哪，
+ * 又不至于一屏全是类型。
  */
 @OnlyIn(Dist.CLIENT)
 public class TypePickerScreen extends Screen {
 
     private static final int PANEL_WIDTH = 340;
     private static final int PANEL_HEIGHT = 260;
-    private static final int HEADER_HEIGHT = 16;
+    private static final int HEADER_HEIGHT = 18;
     private static final int ROW_HEIGHT = 16;
     private static final int LIST_TOP = 30;
 
@@ -32,6 +35,7 @@ public class TypePickerScreen extends Screen {
     private static final int COLOR_TITLE_BAR = 0xFF3C3C3C;
     private static final int COLOR_BORDER = 0xFF8B8B8B;
     private static final int COLOR_HEADER = 0xFF3A3A3A;
+    private static final int COLOR_HEADER_HOVER = 0xFF4A4A4A;
     private static final int COLOR_ROW = 0xFF1B1B1B;
     private static final int COLOR_ROW_HOVER = 0xFF3D5A7A;
     private static final int COLOR_ROW_CURRENT = 0xFF2F5F3F;
@@ -44,23 +48,37 @@ public class TypePickerScreen extends Screen {
     }
 
     private final RecipeEditorScreen parent;
-    private final List<Row> rows = new ArrayList<>();
+    private final Set<RecipeType.Group> expanded = EnumSet.noneOf(RecipeType.Group.class);
     private int scroll;
 
     public TypePickerScreen(RecipeEditorScreen parent) {
         super(Component.literal("选择配方类型"));
         this.parent = parent;
+        // 默认全折叠，但把当前类型所在的分组展开
+        RecipeType current = parent.currentType();
+        if (current != null && ModCompat.available(current.group())) {
+            expanded.add(current.group());
+        }
+    }
+
+    /** 按当前展开状态算出要显示的行 */
+    private List<Row> visibleRows() {
+        List<Row> rows = new ArrayList<>();
         for (RecipeType.Group group : RecipeType.Group.values()) {
             if (!ModCompat.available(group)) {
                 continue;
             }
             rows.add(new Row(group, null));
+            if (!expanded.contains(group)) {
+                continue;
+            }
             for (RecipeType type : RecipeType.values()) {
                 if (type.group() == group) {
                     rows.add(new Row(group, type));
                 }
             }
         }
+        return rows;
     }
 
     private int left() {
@@ -75,8 +93,11 @@ public class TypePickerScreen extends Screen {
         return top() + PANEL_HEIGHT - 8;
     }
 
-    private int maxScroll() {
-        int content = rows.size() * ROW_HEIGHT;
+    private int maxScroll(List<Row> rows) {
+        int content = 0;
+        for (Row row : rows) {
+            content += row.type() == null ? HEADER_HEIGHT : ROW_HEIGHT;
+        }
         int visible = listBottom() - (top() + LIST_TOP);
         return Math.max(0, content - visible);
     }
@@ -92,28 +113,33 @@ public class TypePickerScreen extends Screen {
         drawBorder(graphics, left, top, PANEL_WIDTH, PANEL_HEIGHT, COLOR_BORDER);
 
         graphics.drawString(this.font, "选择配方类型", left + 8, top + 7, COLOR_TEXT, false);
-        graphics.drawString(this.font, "滚轮翻动 · Esc 返回", left + PANEL_WIDTH - 130, top + 7,
-                COLOR_TEXT_DIM, false);
+        graphics.drawString(this.font, "点分组展开 · 滚轮翻动 · Esc 返回",
+                left + PANEL_WIDTH - 168, top + 7, COLOR_TEXT_DIM, false);
 
+        List<Row> rows = visibleRows();
         int x = left + 6;
         int width = PANEL_WIDTH - 12;
         int y = top + LIST_TOP - scroll;
 
         graphics.enableScissor(left + 2, top + LIST_TOP, left + PANEL_WIDTH - 2, listBottom());
         for (Row row : rows) {
-            if (y + ROW_HEIGHT >= top + LIST_TOP && y <= listBottom()) {
+            int height = row.type() == null ? HEADER_HEIGHT : ROW_HEIGHT;
+            if (y + height >= top + LIST_TOP && y <= listBottom()) {
+                boolean hover = mouseX >= x && mouseX < x + width
+                        && mouseY >= y && mouseY < y + height - 1;
                 if (row.type() == null) {
-                    graphics.fill(x, y, x + width, y + HEADER_HEIGHT - 2, COLOR_HEADER);
-                    graphics.drawString(this.font, row.group().label(), x + 4, y + 3,
-                            COLOR_ACCENT, false);
+                    boolean open = expanded.contains(row.group());
+                    graphics.fill(x, y, x + width, y + height - 1,
+                            hover ? COLOR_HEADER_HOVER : COLOR_HEADER);
+                    // ▾ 展开 / ▸ 折叠
+                    graphics.drawString(this.font, open ? "▾ " + row.group().label()
+                            : "▸ " + row.group().label(), x + 4, y + 5, COLOR_ACCENT, false);
                 } else {
-                    boolean hover = mouseX >= x && mouseX < x + width
-                            && mouseY >= y && mouseY < y + ROW_HEIGHT - 1;
                     boolean current = row.type() == this.parent.currentType();
                     int color = current ? COLOR_ROW_CURRENT
                             : hover ? COLOR_ROW_HOVER : COLOR_ROW;
-                    graphics.fill(x, y, x + width, y + ROW_HEIGHT - 1, color);
-                    graphics.drawString(this.font, "  " + row.type().label(), x + 4, y + 4,
+                    graphics.fill(x, y, x + width, y + height - 1, color);
+                    graphics.drawString(this.font, "    " + row.type().label(), x + 4, y + 4,
                             current ? COLOR_TEXT : COLOR_TEXT_DIM, false);
                     if (current) {
                         graphics.drawString(this.font, "当前", x + width - 26, y + 4,
@@ -121,7 +147,7 @@ public class TypePickerScreen extends Screen {
                     }
                 }
             }
-            y += row.type() == null ? HEADER_HEIGHT : ROW_HEIGHT;
+            y += height;
         }
         graphics.disableScissor();
 
@@ -133,13 +159,23 @@ public class TypePickerScreen extends Screen {
         if (button != 0) {
             return super.mouseClicked(mouseX, mouseY, button);
         }
+        List<Row> rows = visibleRows();
         int x = left() + 6;
         int width = PANEL_WIDTH - 12;
         int y = top() + LIST_TOP - scroll;
         for (Row row : rows) {
             int height = row.type() == null ? HEADER_HEIGHT : ROW_HEIGHT;
-            if (row.type() != null && mouseX >= x && mouseX < x + width
-                    && mouseY >= y && mouseY < y + height - 1) {
+            boolean inside = mouseX >= x && mouseX < x + width
+                    && mouseY >= y && mouseY < y + height - 1;
+            if (inside && row.type() == null) {
+                // 点分组标题：展开 / 收起
+                if (!expanded.remove(row.group())) {
+                    expanded.add(row.group());
+                }
+                this.scroll = Math.min(this.scroll, maxScroll(visibleRows()));
+                return true;
+            }
+            if (inside && row.type() != null) {
                 this.parent.applyType(row.type());
                 if (this.minecraft != null) {
                     this.minecraft.setScreen(this.parent);
@@ -153,7 +189,8 @@ public class TypePickerScreen extends Screen {
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
-        this.scroll = Math.max(0, Math.min(maxScroll(), this.scroll - (int) (delta * ROW_HEIGHT)));
+        this.scroll = Math.max(0,
+                Math.min(maxScroll(visibleRows()), this.scroll - (int) (delta * ROW_HEIGHT)));
         return true;
     }
 
