@@ -181,6 +181,9 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
     private int seqStepCount = 4;
     private Button seqCountButton;
 
+    /** 是否已经向服务端要过初始状态（防止重新 init 时冲掉用户刚填的内容） */
+    private boolean syncedOnce;
+
     /** 最近一次从 JEI 拖进来 / 搜索选中的物品；右键空格时用它填充 */
     private String lastPickedItem;
 
@@ -350,7 +353,14 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
         this.addRenderableWidget(this.searchField);
 
         this.secondaryButton = this.addRenderableWidget(Button.builder(
-                        Component.literal(secondaryLabel()), b -> cycleSecondary())
+                        Component.literal(secondaryLabel()), b -> {
+                            // 删除模式的这个按钮是「依据」，循环切换即可；其余情况打开类型选择界面
+                            if (this.operation == Operation.REMOVE) {
+                                cycleSecondary();
+                            } else if (this.minecraft != null) {
+                                this.minecraft.setScreen(new TypePickerScreen(this));
+                            }
+                        })
                 .bounds(this.leftPos + 37, this.topPos + CONTROLS_Y, 96, 20)
                 .build());
 
@@ -512,8 +522,12 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
         this.ownWidgets.clear();
         this.ownWidgets.addAll(this.renderables);
 
-        // 界面建好了，向服务端要一次状态：从 JEI 跳进来时首个状态包可能已经错过了
-        ModNetwork.requestEditorSync();
+        // 界面建好了，向服务端要一次状态：从 JEI 跳进来时首个状态包可能已经错过了。
+        // 只在第一次要——打开「类型选择」再回来时也会走 init()，那时再要会把刚填的内容冲掉。
+        if (!this.syncedOnce) {
+            this.syncedOnce = true;
+            ModNetwork.requestEditorSync();
+        }
     }
 
     /**
@@ -539,6 +553,25 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
         // 槽位布局等服务端确认后再重建，避免两端槽位数短暂不一致
         ModNetwork.requestSetMode(this.operation, this.recipeType, this.createMachine);
         refreshButtonStates();
+    }
+
+    /** 当前类型，供类型选择界面高亮 */
+    public RecipeType currentType() {
+        return this.recipeType;
+    }
+
+    /** 从选择界面切过来：换类型并重建槽位（和 cycleSecondary 走同一条路） */
+    public void applyType(RecipeType type) {
+        if (type == null || type == this.recipeType) {
+            return;
+        }
+        this.recipeType = type;
+        this.inputItems = blankInputs();
+        this.extraItems = blankExtras();
+        ModNetwork.requestSetMode(this.operation, type, this.createMachine);
+        applySlotLayout();
+        refreshButtonStates();
+        updateWidgetVisibility();
     }
 
     private void cycleSecondary() {
