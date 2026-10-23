@@ -1706,6 +1706,10 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
      *
      * <p>之前所有流体都画成同一个蓝块，根本分不清水和岩浆，这里改成读真实贴图。
      */
+    /** 流体贴图缓存：每帧每格都查一次图集太浪费 */
+    private static final java.util.Map<String, net.minecraft.client.renderer.texture.TextureAtlasSprite>
+            FLUID_SPRITES = new java.util.HashMap<>();
+
     private void drawFluidCell(GuiGraphics graphics, int x, int y, String value) {
         String rest = value.substring("fluid:".length());
         String id = rest;
@@ -1730,9 +1734,10 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
         }
         net.minecraftforge.client.extensions.common.IClientFluidTypeExtensions ext =
                 net.minecraftforge.client.extensions.common.IClientFluidTypeExtensions.of(fluid);
-        net.minecraft.client.renderer.texture.TextureAtlasSprite sprite = this.minecraft
-                .getTextureAtlas(net.minecraft.world.inventory.InventoryMenu.BLOCK_ATLAS)
-                .apply(ext.getStillTexture());
+        net.minecraft.client.renderer.texture.TextureAtlasSprite sprite =
+                FLUID_SPRITES.computeIfAbsent(id, key -> this.minecraft
+                        .getTextureAtlas(net.minecraft.world.inventory.InventoryMenu.BLOCK_ATLAS)
+                        .apply(ext.getStillTexture()));
         graphics.blit(x + 1, y + 1, 0, 16, 16, sprite);
         int tint = ext.getTintColor();
         if ((tint & 0xFFFFFF) != 0xFFFFFF) {
