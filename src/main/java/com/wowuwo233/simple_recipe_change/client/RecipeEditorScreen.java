@@ -68,8 +68,8 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
     private static final int CONTROLS_Y = 208;
     private static final int LABEL_Y = 236;
     /** 配方名与文件名并排时各自的宽度：ID 可能很长，给宽一点 */
-    private static final int ID_W = 278;
-    private static final int FILE_X = 294;
+    private static final int ID_W = 253;
+    private static final int FILE_X = 269;
     private static final int FIELD_Y = 246;
     /**
      * 备注输入框。
@@ -78,8 +78,8 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
      * 而「配方类型」标签在 202，中间正好空着。之前放到底部又开了一行，
      * 窗口涨到 420 就直接超出屏幕可用高度、顶部被裁掉了。
      */
-    private static final int NOTE_LABEL_Y = 166;
-    private static final int NOTE_Y = 176;
+    private static final int NOTE_LABEL_Y = 156;
+    private static final int NOTE_Y = 166;
     private static final int BUTTONS_Y = 270;
 
     /**
@@ -110,7 +110,7 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
      */
     private static final int TIME_FIELD_Y = 106;
     /** 右半边输入框的 x 与宽度 */
-    private static final int FIELD_X = 260;
+    private static final int FIELD_X = 235;
     private static final int FIELD_W = 178;
 
     // 搜索浮层：从搜索框下方一直铺到窗口底部，搜索时把下半部分（含玩家背包）整块盖住。
@@ -309,12 +309,12 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
         this.clearWidgets();
 
         Operation[] modes = {Operation.ADD, Operation.MODIFY, Operation.REMOVE};
-        int[] modeX = {10, 112, 214};
+        int[] modeX = {9, 101, 193};
         for (int i = 0; i < modes.length; i++) {
             final Operation mode = modes[i];
             modeButtons[i] = this.addRenderableWidget(Button.builder(
                             Component.literal(mode.label()), b -> switchMode(mode))
-                    .bounds(this.leftPos + modeX[i], this.topPos + MODE_Y, 92, 20)
+                    .bounds(this.leftPos + modeX[i], this.topPos + MODE_Y, 84, 20)
                     .build());
         }
 
@@ -324,7 +324,7 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
                         this.minecraft.setScreen(new RecipeListScreen(this));
                     }
                 })
-                .bounds(this.leftPos + 316, this.topPos + MODE_Y, 92, 20)
+                .bounds(this.leftPos + 285, this.topPos + MODE_Y, 84, 20)
                 .build());
 
         // 全界面唯一的重载入口。底栏原本还有一个文案与行为完全相同的「重载脚本」，
@@ -333,7 +333,7 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
                     ModNetwork.requestReload();
                     setStatus(true, "已请求重载，KubeJS 会重新读取脚本");
                 })
-                .bounds(this.leftPos + 418, this.topPos + MODE_Y, 92, 20)
+                .bounds(this.leftPos + 377, this.topPos + MODE_Y, 84, 20)
                 .build());
 
         String previous = this.searchField == null ? "" : this.searchField.getValue();
@@ -351,12 +351,12 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
 
         this.secondaryButton = this.addRenderableWidget(Button.builder(
                         Component.literal(secondaryLabel()), b -> cycleSecondary())
-                .bounds(this.leftPos + 62, this.topPos + CONTROLS_Y, 96, 20)
+                .bounds(this.leftPos + 37, this.topPos + CONTROLS_Y, 96, 20)
                 .build());
 
         this.groupButton = this.addRenderableWidget(Button.builder(
                         Component.literal(groupLabel()), b -> cycleGroup())
-                .bounds(this.leftPos + 166, this.topPos + CONTROLS_Y, 96, 20)
+                .bounds(this.leftPos + 141, this.topPos + CONTROLS_Y, 96, 20)
                 .build());
 
         this.shapelessButton = this.addRenderableWidget(Button.builder(
@@ -368,7 +368,7 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
                             }
                             refreshButtonStates();
                         })
-                .bounds(this.leftPos + 270, this.topPos + CONTROLS_Y, 96, 20)
+                .bounds(this.leftPos + 245, this.topPos + CONTROLS_Y, 96, 20)
                 .build());
 
         this.mirrorButton = this.addRenderableWidget(Button.builder(
@@ -380,7 +380,7 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
                             }
                             refreshButtonStates();
                         })
-                .bounds(this.leftPos + 374, this.topPos + CONTROLS_Y, 96, 20)
+                .bounds(this.leftPos + 349, this.topPos + CONTROLS_Y, 96, 20)
                 .build());
 
         // 烧炼专用的经验与时间
@@ -454,7 +454,7 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
                             this.carryOutputNbt = !this.carryOutputNbt;
                             refreshButtonStates();
                         })
-                .bounds(this.leftPos + 270, this.topPos + BUTTONS_Y, 96, 20)
+                .bounds(this.leftPos + 245, this.topPos + BUTTONS_Y, 96, 20)
                 .build());
         this.outputNbtButton.setTooltip(Tooltip.create(Component.literal(
                 "产物带 NBT（附魔 / 药水 / 自定义名称）时，是否把这些标签写进脚本。\n"
@@ -483,7 +483,7 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
                                     % RecipeEditorMenu.SEQ_STEP_COUNT + 1;
                             applySeqStepCount();
                         })
-                .bounds(this.leftPos + 270, this.topPos + CONTROLS_Y, 96, 20)
+                .bounds(this.leftPos + 245, this.topPos + CONTROLS_Y, 96, 20)
                 .build());
 
         // 控件都建好之后再统一摆一次位置与可见性：
@@ -492,7 +492,7 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
         updateWidgetVisibility();
 
         this.saveButton = this.addRenderableWidget(Button.builder(Component.literal("保存并写入"), b -> save())
-                .bounds(this.leftPos + 62, this.topPos + BUTTONS_Y, 96, 20)
+                .bounds(this.leftPos + 37, this.topPos + BUTTONS_Y, 96, 20)
                 .build());
 
         this.clearButton = this.addRenderableWidget(Button.builder(Component.literal("清空编辑区"), b -> {
@@ -500,7 +500,7 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
                     this.inputItems = blankInputs();
                     setStatus(true, "已清空编辑区");
                 })
-                .bounds(this.leftPos + 166, this.topPos + BUTTONS_Y, 96, 20)
+                .bounds(this.leftPos + 141, this.topPos + BUTTONS_Y, 96, 20)
                 .build());
 
         applySlotLayout();
