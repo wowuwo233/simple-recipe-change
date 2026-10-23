@@ -294,8 +294,9 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
     }
 
     private static List<String> blankInputs() {
-        List<String> list = new ArrayList<>(RecipeEditorMenu.GRID_SIZE);
-        for (int i = 0; i < RecipeEditorMenu.GRID_SIZE; i++) {
+        // 9 个物品格 + 1 个流体储罐格
+        List<String> list = new ArrayList<>(RecipeEditorMenu.GRID_SIZE + 1);
+        for (int i = 0; i < RecipeEditorMenu.GRID_SIZE + 1; i++) {
             list.add(null);
         }
         return list;
@@ -1335,6 +1336,14 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
                     continue;
                 }
                 String cellValue = cell < this.inputItems.size() ? this.inputItems.get(cell) : null;
+                if (this.recipeType.hasFluidSlot() && cell == RecipeEditorMenu.FLUID_CELL) {
+                    if (cellValue != null && cellValue.startsWith("fluid:")) {
+                        drawFluidCell(graphics, x + slot.x, y + slot.y, cellValue);
+                    } else {
+                        drawEmptyTank(graphics, x + slot.x, y + slot.y);
+                    }
+                    continue;
+                }
                 if (cellValue != null && cellValue.startsWith("fluid:")) {
                     drawFluidCell(graphics, x + slot.x, y + slot.y, cellValue);
                     continue;
@@ -1740,7 +1749,12 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
             return false;
         }
         if (slotIndex < this.menu.inputMenuCount()) {
-            return !isDisabledInput(this.menu.slots.get(slotIndex).getContainerSlot());
+            int cell = this.menu.slots.get(slotIndex).getContainerSlot();
+            // 储罐格只收流体，物品拖过来直接不认
+            if (this.recipeType.hasFluidSlot() && cell == RecipeEditorMenu.FLUID_CELL) {
+                return false;
+            }
+            return !isDisabledInput(cell);
         }
         return slotIndex == this.menu.outputMenuIndex();
     }
@@ -1803,6 +1817,14 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
         }
     }
 
+    /** 空储罐：深色罐体 + 顶部高光 + 一个「液」字提示 */
+    private void drawEmptyTank(GuiGraphics graphics, int x, int y) {
+        graphics.fill(x + 1, y + 1, x + 17, y + 17, 0xFF2A2A2A);
+        graphics.fill(x + 4, y + 2, x + 14, y + 16, 0xFF1A1A1A);
+        graphics.fill(x + 4, y + 2, x + 14, y + 3, 0x40FFFFFF);
+        graphics.drawString(this.font, "液", x + 6, y + 5, 0xFF6A8FB5, false);
+    }
+
     /** JEI 拖拽流体：写成 fluid:命名空间:路径:数量，格子里显示流体贴图 */
     public void acceptGhostFluidDrop(int slotIndex, String fluidId, int amount) {
         if (fluidId == null || fluidId.isBlank() || slotIndex < 0
@@ -1811,6 +1833,10 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
         }
         int cell = this.menu.slots.get(slotIndex).getContainerSlot();
         if (isDisabledInput(cell)) {
+            return;
+        }
+        // 有专用储罐格的类型：流体只能进储罐格；没有的类型维持原样（可当普通材料）
+        if (this.recipeType.hasFluidSlot() && cell != RecipeEditorMenu.FLUID_CELL) {
             return;
         }
         String value = "fluid:" + fluidId + ":" + Math.max(1, amount);

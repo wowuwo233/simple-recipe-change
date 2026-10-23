@@ -182,12 +182,14 @@ public enum RecipeType {
 
     /** 界面里要显示的输入槽数量 */
     public int inputSlotCount() {
-        return switch (category) {
+        int base = switch (category) {
             case CRAFTING -> gridWidth * gridHeight;
             case COOKING -> 1;
             case SMITHING -> 3;
             case FARMERS, CREATE, THERMAL -> gridWidth;
         };
+        // 带储罐格的类型多算一格（下标 9 是流体）
+        return hasFluidSlot() ? base + 1 : base;
     }
 
     /** 输入槽的中文名，下标与 {@code cells} 的前几项一一对应 */
@@ -257,6 +259,21 @@ public enum RecipeType {
         return this == THERMAL_HIVE_EXTRACTOR || this == THERMAL_TREE_EXTRACTOR
                 || this == THERMAL_ROCK_GEN || this == THERMAL_TREE_BOOST
                 || this == THERMAL_FISHER_BOOST || thermalParamCount() > 0;
+    }
+
+    /**
+     * 这个类型要不要一个<b>专用流体储罐格</b>。
+     *
+     * <p>储罐格是第 10 个输入格（下标 {@code FLUID_CELL}），只能放流体：
+     * 物品拖进来会被拒绝，流体拖进普通物品格也会被拒绝。
+     *
+     * <p>热力膨胀里这些机器确实吃流体：结晶机（水/熔岩）、精炼机、灌装机、酿造机、
+     * 熔岩炉、光照栽培机（水）。其余类型没有储罐格，流体只能作为普通材料写进格子。
+     */
+    public boolean hasFluidSlot() {
+        return this == THERMAL_CRYSTALLIZER || this == THERMAL_REFINERY
+                || this == THERMAL_BOTTLER || this == THERMAL_BREWER
+                || this == THERMAL_CRUCIBLE || this == THERMAL_INSOLATOR;
     }
 
     /** 热力膨胀的燃料类（只要材料 + 能量，没有产物） */

@@ -19,4 +19,7 @@ public interface SlotPlacer {
 
     /** 序列组装的失败产物格（单独一个容器，避免和步骤槽撞下标） */
     void failure(int x, int y);
+
+    /** 专用流体储罐格：只能放流体，物品拖进来会被拒绝 */
+    void fluid(int index, int x, int y);
 }

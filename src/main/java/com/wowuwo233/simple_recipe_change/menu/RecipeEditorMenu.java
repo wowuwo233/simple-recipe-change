@@ -48,6 +48,11 @@ public class RecipeEditorMenu extends AbstractContainerMenu {
 
     /** 输入槽容器固定 9 格（合成 3×3 用满，其它类型只用前几个） */
     public static final int GRID_SIZE = 9;
+    /** 专用流体储罐格的下标（有储罐格的类型才有，见 RecipeType#hasFluidSlot） */
+    public static final int FLUID_CELL = 9;
+    /** 储罐格的位置：3×3 网格右侧，竖长条 */
+    public static final int FLUID_SLOT_X = 190;
+    public static final int FLUID_SLOT_Y = 93;
 
     // ---------------------------------------------------------- 界面布局常量
     // 槽位坐标相对屏幕左上角 (leftPos, topPos)。
@@ -254,7 +259,7 @@ public class RecipeEditorMenu extends AbstractContainerMenu {
     }
 
     /** 只用来给展示槽当载体，永远保持为空 */
-    private final Container placeholder = new SimpleContainer(GRID_SIZE);
+    private final Container placeholder = new SimpleContainer(GRID_SIZE + 1);
     /** 序列组装的失败产物单独用一个容器：复用 placeholder 的下标会和步骤槽撞车 */
     private final Container failureSlot = new SimpleContainer(1);
     private final Container output = new SimpleContainer(1);
@@ -328,6 +333,11 @@ public class RecipeEditorMenu extends AbstractContainerMenu {
                     @Override
                     public void failure(int x, int y) {
                         place(new DisplaySlot(failureSlot, 0, x, y), firstTime);
+                    }
+
+                    @Override
+                    public void fluid(int index, int x, int y) {
+                        place(new DisplaySlot(placeholder, index, x, y), firstTime);
                     }
                 });
 
