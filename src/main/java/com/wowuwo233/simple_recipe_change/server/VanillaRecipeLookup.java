@@ -227,14 +227,14 @@ public final class VanillaRecipeLookup {
                 recipe.getResultItem(access), 0D, RecipeDraft.DEFAULT_COOKING_TIME);
     }
 
-    private static Found build(ResourceLocation recipeId, RecipeType type, boolean shapeless,
+    static Found build(ResourceLocation recipeId, RecipeType type, boolean shapeless,
                                List<String> cells, Set<String> distinct, ItemStack result,
                                double xp, int cookingTime) {
         return build(recipeId, type, shapeless, cells, distinct, result, xp, cookingTime,
                 List.of(), CreateMachine.CRUSHING, "");
     }
 
-    private static Found build(ResourceLocation recipeId, RecipeType type, boolean shapeless,
+    static Found build(ResourceLocation recipeId, RecipeType type, boolean shapeless,
                                List<String> cells, Set<String> distinct, ItemStack result,
                                double xp, int cookingTime,
                                List<RecipeDraft.ExtraOutput> extras, CreateMachine machine,
@@ -269,7 +269,7 @@ public final class VanillaRecipeLookup {
         return String.valueOf(value);
     }
 
-    private static List<String> blankCells() {
+    static List<String> blankCells() {
         List<String> cells = new ArrayList<>(9);
         for (int i = 0; i < 9; i++) {
             cells.add(null);
@@ -338,7 +338,7 @@ public final class VanillaRecipeLookup {
         return null;
     }
 
-    private static String idOf(ItemStack stack) {
+    static String idOf(ItemStack stack) {
         ResourceLocation key = ForgeRegistries.ITEMS.getKey(stack.getItem());
         return key == null ? null : key.toString();
     }
@@ -377,11 +377,10 @@ public final class VanillaRecipeLookup {
             if (type == RecipeType.FARMERS_CUTTING) {
                 return fromCutting(recipe, access);
             }
-            if (type.isThermal()) {
-                Found machine = fromThermalMachine(recipe, type);
-                Found found = machine != null ? machine : fromThermal(recipe, access, type);
-                // 热力膨胀把配方数据藏在管理器里，Recipe 对象读不出东西——退回读数据包 JSON
-                return found != null ? found : fromJson(level, id, type);
+            // 各模组自己的导入器（热力膨胀等），见 RecipeImporter
+            Found imported = ImporterRegistry.read(level, recipe, type, access, id);
+            if (imported != null) {
+                return imported;
             }
             if (type == RecipeType.FARMERS_COOKING) {
                 return fromCookingPot(recipe, access);
@@ -462,75 +461,7 @@ public final class VanillaRecipeLookup {
      * 燃料、催化剂这些只要实现了标准接口就都能读出来；读不到的（比如副产物、参数串）
      * 留空，玩家在界面上补。
      */
-    private static Found fromThermal(Recipe<?> recipe, RegistryAccess access, RecipeType type) {
-        List<String> cells = blankCells();
-        Set<String> distinct = new LinkedHashSet<>();
-        // 热力膨胀的配方类没走标准接口，getIngredients() 常返回空表，这里退回反射
-        List<Object> raw = new ArrayList<>();
-        List<Ingredient> ingredients = recipe.getIngredients();
-        if (!ingredients.isEmpty()) {
-            raw.addAll(ingredients);
-        } else {
-            Object input = call(recipe, "getInput");
-            if (input == null) {
-                input = call(recipe, "getInputs");
-            }
-            if (input instanceof List<?> list) {
-                raw.addAll(list);
-            } else if (input instanceof Ingredient single) {
-                raw.add(single);
-            }
-        }
-        for (int i = 0; i < 9 && i < raw.size(); i++) {
-            String id = raw.get(i) instanceof Ingredient ing ? describe(ing)
-                    : raw.get(i) instanceof ItemStack stack ? idOf(stack) : null;
-            cells.set(i, id);
-            if (id != null) {
-                distinct.add(id);
-            }
-        }
-
-        ItemStack result = recipe.getResultItem(access);
-        if (result.isEmpty()) {
-            Object output = call(recipe, "getOutput");
-            if (output == null) {
-                output = call(recipe, "getOutputs");
-            }
-            if (output instanceof List<?> list && !list.isEmpty()) {
-                output = list.get(0);
-            }
-            if (output instanceof ItemStack stack) {
-                result = stack;
-            }
-        }
-        // 映射类（rock_gen / hive_extractor / tree_extractor）没有标准材料表，按字段读
-        if (distinct.isEmpty()) {
-            String[] fieldNames = {"adjacent", "below", "hive", "trunk", "leaves", "item"};
-            int cell = 0;
-            for (String name : fieldNames) {
-                String id = fieldAsId(recipe, name);
-                if (id != null) {
-                    cells.set(cell++, id);
-                    distinct.add(id);
-                }
-            }
-            if (result == null || result.isEmpty()) {
-                String id = fieldAsId(recipe, "result");
-                if (id != null) {
-                    ItemStack stack = stackOfId(id);
-                    if (stack != null) {
-                        result = stack;
-                    }
-                }
-            }
-        }
-        if (distinct.isEmpty() && (result == null || result.isEmpty())) {
-            // 什么都读不出来：宁可报「打不开」，也不要开一个空界面让人以为坏了
-            return null;
-        }
-        return build(recipe.getId(), type, false, cells, distinct, result, 0D,
-                RecipeDraft.DEFAULT_COOKING_TIME);
-    }
+    
 
     /** 农夫乐事 · 切菜板：材料 + 工具 + 若干产物（带概率） */
     private static Found fromCutting(Recipe<?> recipe, RegistryAccess access) {
@@ -655,7 +586,7 @@ public final class VanillaRecipeLookup {
     }
 
     /** 反射调一个无参方法；拿不到就返回 {@code null}（模组改名/混淆都不至于崩） */
-    private static Object call(Object target, String method) {
+    static Object call(Object target, String method) {
         if (target == null) {
             return null;
         }
@@ -675,85 +606,10 @@ public final class VanillaRecipeLookup {
      * 这样不管 Thermal 内部叫什么都能命中。
      */
     @SuppressWarnings("unchecked")
-    private static Found fromThermalMachine(Recipe<?> recipe, RecipeType type) {
-        Object machine = null;
-        if (recipe.getClass().getName().endsWith("IMachineRecipe")) {
-            machine = recipe;
-        } else {
-            for (java.lang.reflect.Field f : recipe.getClass().getDeclaredFields()) {
-                if (f.getType().getName().endsWith("IMachineRecipe")) {
-                    try {
-                        f.setAccessible(true);
-                        machine = f.get(recipe);
-                    } catch (Exception ignored) {
-                        // 拿不到就继续找
-                    }
-                    if (machine != null) {
-                        break;
-                    }
-                }
-            }
-        }
-        if (machine == null) {
-            return null;
-        }
-
-        List<String> cells = blankCells();
-        Set<String> distinct = new LinkedHashSet<>();
-        int cell = 0;
-        if (call(machine, "getInputItems") instanceof List<?> items) {
-            for (Object item : items) {
-                if (item instanceof ItemStack stack && !stack.isEmpty() && cell < 9) {
-                    String id = stack.getCount() > 1
-                            ? stack.getCount() + "x " + idOf(stack) : idOf(stack);
-                    cells.set(cell++, id);
-                    distinct.add(id);
-                }
-            }
-        }
-        if (call(machine, "getInputFluids") instanceof List<?> fluids) {
-            for (Object fluid : fluids) {
-                if (cell >= 9) {
-                    break;
-                }
-                String id = fluidCell(fluid);
-                if (id != null) {
-                    cells.set(cell++, id);
-                    distinct.add(id);
-                }
-            }
-        }
-        if (distinct.isEmpty()) {
-            return null;
-        }
-
-        ItemStack output = ItemStack.EMPTY;
-        if (call(machine, "getOutputItems") instanceof List<?> outs && !outs.isEmpty()
-                && outs.get(0) instanceof ItemStack first) {
-            output = first.copy();
-        }
-        return build(recipe.getId(), type, false, cells, distinct, output, 0D,
-                RecipeDraft.DEFAULT_COOKING_TIME);
-    }
+    
 
     /** FluidStack -> fluid:ns:path:amount */
-    private static String fluidCell(Object fluidStack) {
-        if (fluidStack == null) {
-            return null;
-        }
-        Object fluid = call(fluidStack, "getFluid");
-        Object amount = call(fluidStack, "getAmount");
-        if (fluid == null) {
-            return null;
-        }
-        ResourceLocation key = ForgeRegistries.FLUIDS.getKey(
-                (net.minecraft.world.level.material.Fluid) fluid);
-        if (key == null) {
-            return null;
-        }
-        int mb = amount instanceof Integer i ? i : 1000;
-        return "fluid:" + key + ":" + mb;
-    }
+    
 
     /**
      * 直接读数据包里的配方 JSON。
@@ -764,140 +620,20 @@ public final class VanillaRecipeLookup {
      *
      * <p>顺带对所有模组通用——只要配方是数据包定义的，这个方法都能读。
      */
-    public static Found fromJson(Level level, ResourceLocation id, RecipeType type) {
-        if (!(level instanceof net.minecraft.server.level.ServerLevel serverLevel)) {
-            return null;
-        }
-        ResourceLocation file = new ResourceLocation(id.getNamespace(),
-                "recipes/" + id.getPath() + ".json");
-        try {
-            var resource = serverLevel.getServer().getResourceManager().getResource(file);
-            if (resource.isEmpty()) {
-                return null;
-            }
-            com.google.gson.JsonObject json;
-            try (var reader = resource.get().openAsReader()) {
-                json = com.google.gson.JsonParser.parseReader(reader).getAsJsonObject();
-            }
-            List<String> cells = blankCells();
-            Set<String> distinct = new LinkedHashSet<>();
-            List<String> ingredients = jsonList(json, "ingredients", "ingredient", "inputs", "input");
-            for (int i = 0; i < 9 && i < ingredients.size(); i++) {
-                String value = ingredients.get(i);
-                if (value != null) {
-                    cells.set(i, value);
-                    distinct.add(value);
-                }
-            }
-            List<String> results = jsonList(json, "results", "result", "outputs", "output");
-            ItemStack output = ItemStack.EMPTY;
-            if (!results.isEmpty() && results.get(0) != null) {
-                String first = results.get(0);
-                if (first.startsWith("fluid:")) {
-                    // 纯流体产物：本模组产物格只放物品，跳过
-                    results.remove(0);
-                } else {
-                    String plain = first.contains("x ") ? first.substring(first.indexOf("x ") + 2) : first;
-                    ItemStack stack = stackOfId(plain);
-                    if (stack != null) {
-                        output = stack;
-                        if (first.contains("x ")) {
-                            try {
-                                output.setCount(Integer.parseInt(first.substring(0, first.indexOf("x ")).trim()));
-                            } catch (NumberFormatException ignored) {
-                                // 数量解析失败就按 1
-                            }
-                        }
-                    }
-                }
-            }
-            if (distinct.isEmpty() && output.isEmpty()) {
-                return null;
-            }
-            return build(id, type, false, cells, distinct, output, 0D,
-                    RecipeDraft.DEFAULT_COOKING_TIME);
-        } catch (Exception e) {
-            return null;
-        }
-    }
+    
 
     /** 从 JSON 里按候选键名取一组材料/产物，统一转成单元格字符串 */
-    private static List<String> jsonList(com.google.gson.JsonObject json, String... keys) {
-        List<String> out = new ArrayList<>();
-        for (String key : keys) {
-            if (!json.has(key)) {
-                continue;
-            }
-            com.google.gson.JsonElement element = json.get(key);
-            if (element.isJsonArray()) {
-                for (com.google.gson.JsonElement child : element.getAsJsonArray()) {
-                    String value = jsonIngredient(child);
-                    if (value != null) {
-                        out.add(value);
-                    }
-                }
-            } else {
-                String value = jsonIngredient(element);
-                if (value != null) {
-                    out.add(value);
-                }
-            }
-            if (!out.isEmpty()) {
-                return out;
-            }
-        }
-        return out;
-    }
+    
 
-    private static String jsonIngredient(com.google.gson.JsonElement element) {
-        if (element == null || element.isJsonNull()) {
-            return null;
-        }
-        if (element.isJsonPrimitive()) {
-            return element.getAsString();
-        }
-        if (!element.isJsonObject()) {
-            return null;
-        }
-        com.google.gson.JsonObject obj = element.getAsJsonObject();
-        if (obj.has("item")) {
-            String id = obj.get("item").getAsString();
-            int count = obj.has("count") ? obj.get("count").getAsInt() : 1;
-            return count > 1 ? count + "x " + id : id;
-        }
-        if (obj.has("tag")) {
-            return "#" + obj.get("tag").getAsString();
-        }
-        if (obj.has("fluid")) {
-            int amount = obj.has("amount") ? obj.get("amount").getAsInt() : 1000;
-            return "fluid:" + obj.get("fluid").getAsString() + ":" + amount;
-        }
-        return null;
-    }
+    
 
     /** 反射读字段并转成物品 ID：Ingredient / ItemStack / Block / Item 都认 */
-    private static String fieldAsId(Object target, String name) {
-        Object value = field(target, name);
-        if (value instanceof Ingredient ingredient) {
-            return describe(ingredient);
-        }
-        if (value instanceof ItemStack stack) {
-            return stack.isEmpty() ? null : idOf(stack);
-        }
-        if (value instanceof net.minecraft.world.level.ItemLike itemLike) {
-            return idOf(new ItemStack(itemLike));
-        }
-        return null;
-    }
+    
 
-    private static ItemStack stackOfId(String id) {
-        net.minecraft.world.item.Item item = ForgeRegistries.ITEMS.getValue(
-                new ResourceLocation(id));
-        return item == null ? null : new ItemStack(item);
-    }
+    
 
     /** 反射读公有字段（Create 的 {@code resultPool} 是 public field，没有 getter） */
-    private static Object field(Object target, String name) {
+    static Object field(Object target, String name) {
         if (target == null) {
             return null;
         }
