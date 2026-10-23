@@ -511,6 +511,9 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
         // 塞按钮，那些控件是 init() 之后才加进来的，渲染前清掉（见 purgeForeignWidgets）。
         this.ownWidgets.clear();
         this.ownWidgets.addAll(this.renderables);
+
+        // 界面建好了，向服务端要一次状态：从 JEI 跳进来时首个状态包可能已经错过了
+        ModNetwork.requestEditorSync();
     }
 
     /**

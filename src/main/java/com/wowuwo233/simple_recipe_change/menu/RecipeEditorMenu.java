@@ -624,7 +624,17 @@ public class RecipeEditorMenu extends AbstractContainerMenu {
      * <p>进入 MODIFY 是因为玩家点「跳转」十有八九是想改这条配方；
      * 保存时会先 {@code event.remove({id})} 再写新的。
      */
+    /** 最近一次「按 ID 跳转」载入的配方；客户端界面建好后会主动要一次，防止首个状态包被丢 */
+    private VanillaRecipeLookup.Found pendingFound;
+
+    public void resendFound(ServerPlayer player) {
+        if (this.pendingFound != null) {
+            ModNetwork.sendRecipeById(player, this, this.pendingFound);
+        }
+    }
+
     public void applyFoundById(ServerPlayer player, VanillaRecipeLookup.Found found) {
+        this.pendingFound = found;
         this.operation = Operation.MODIFY;
         this.recipeType = found.suggestedType();
         this.sourceRecipeId = found.recipeId();

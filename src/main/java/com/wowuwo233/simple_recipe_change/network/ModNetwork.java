@@ -70,6 +70,8 @@ public final class ModNetwork {
                 DeleteIndexPacket::encode, DeleteIndexPacket::decode, DeleteIndexPacket::handle);
         CHANNEL.registerMessage(id++, PickItemPacket.class,
                 PickItemPacket::encode, PickItemPacket::decode, PickItemPacket::handle);
+        CHANNEL.registerMessage(id++, SyncEditorPacket.class,
+                SyncEditorPacket::encode, SyncEditorPacket::decode, SyncEditorPacket::handle);
         CHANNEL.registerMessage(id++, LoadRecipeByIdPacket.class,
                 LoadRecipeByIdPacket::encode, LoadRecipeByIdPacket::decode,
                 LoadRecipeByIdPacket::handle);        CHANNEL.registerMessage(id++, ReloadPacket.class,
@@ -627,6 +629,37 @@ public final class ModNetwork {
             });
             ctx.setPacketHandled(true);
         }
+    }
+
+    /**
+     * 客户端界面初始化后主动要一次状态。
+     *
+     * <p>「按 ID 跳转」时服务端是在 openMenu 之后推的状态包，而客户端那一刻可能还没建好
+     * Screen，包会被丢掉——界面就开成空的。让界面建好后自己再要一次，最稳。
+     */
+    public record SyncEditorPacket() {
+        public static void encode(SyncEditorPacket msg, FriendlyByteBuf buf) {
+        }
+
+        public static SyncEditorPacket decode(FriendlyByteBuf buf) {
+            return new SyncEditorPacket();
+        }
+
+        public static void handle(SyncEditorPacket msg, Supplier<NetworkEvent.Context> ctxSupplier) {
+            NetworkEvent.Context ctx = ctxSupplier.get();
+            ctx.enqueueWork(() -> {
+                ServerPlayer player = ctx.getSender();
+                if (player != null && player.containerMenu instanceof RecipeEditorMenu menu) {
+                    menu.resendFound(player);
+                }
+            });
+            ctx.setPacketHandled(true);
+        }
+    }
+
+    /** 客户端：界面建好后请求补发一次状态 */
+    public static void requestEditorSync() {
+        CHANNEL.sendToServer(new SyncEditorPacket());
     }
 
     /** 客户端：请求按 ID 跳转 */
