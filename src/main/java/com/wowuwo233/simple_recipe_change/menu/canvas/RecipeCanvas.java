@@ -13,4 +13,23 @@ public interface RecipeCanvas {
 
     /** 把这个类型的槽位摆出来 */
     void layout(CanvasContext ctx, SlotPlacer placer);
+
+    /**
+     * 画机器底图（凹槽、箭头、产物框之类）。
+     *
+     * <p>默认什么都不画，走通用的「每格一个方框」。
+     * 关掉方框（{@link #drawSlotFrames()} 返回 false）的画布应该在这里把槽位背景画好，
+     * 否则物品会浮在空地上。
+     *
+     * @param leftPos 窗口左上角（屏幕坐标）
+     * @param topPos  窗口上边
+     */
+    default void background(net.minecraft.client.gui.GuiGraphics graphics,
+                            int leftPos, int topPos, CanvasContext ctx) {
+    }
+
+    /** 要不要给每个槽画方框。返回 false 时由 {@link #background} 自己画 */
+    default boolean drawSlotFrames() {
+        return true;
+    }
 }

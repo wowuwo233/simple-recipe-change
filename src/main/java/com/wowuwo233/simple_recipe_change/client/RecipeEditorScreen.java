@@ -9,6 +9,9 @@ import com.wowuwo233.simple_recipe_change.kubejs.RecipeDraft;
 import com.wowuwo233.simple_recipe_change.kubejs.RecipeType;
 import com.wowuwo233.simple_recipe_change.kubejs.RemoveBy;
 import com.wowuwo233.simple_recipe_change.menu.RecipeEditorMenu;
+import com.wowuwo233.simple_recipe_change.menu.canvas.CanvasContext;
+import com.wowuwo233.simple_recipe_change.menu.canvas.CanvasRegistry;
+import com.wowuwo233.simple_recipe_change.menu.canvas.RecipeCanvas;
 import com.wowuwo233.simple_recipe_change.network.ModNetwork;
 import com.wowuwo233.simple_recipe_change.search.ItemSearch;
 import net.minecraft.client.gui.GuiGraphics;
@@ -1127,11 +1130,22 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
         graphics.fill(x, y, x + this.imageWidth, y + 20, COLOR_TITLE_BAR);
         drawBorder(graphics, x, y, this.imageWidth, this.imageHeight, COLOR_BORDER);
 
+        // 先让画布画机器底图（凹槽 / 箭头 / 产物框）
+        RecipeCanvas canvas = CanvasRegistry.of(this.recipeType);
+        canvas.background(graphics, x, y, new CanvasContext(this.recipeType, this.operation,
+                this.menu.extraOutputCount()));
+
+        // 画布自己画了底图的话，配方区就不要再逐格画方框，否则两层叠在一起。
+        // 背包那部分不受影响——它没有底图，必须留着方框。
         int inputs = this.menu.inputMenuCount();
+        int playerStart = this.menu.playerMenuStart();
         for (int i = 0; i < this.menu.slots.size(); i++) {
             Slot slot = this.menu.slots.get(i);
             // 序列组装里超出「步骤数」的槽整个不画
             if (!slot.isActive()) {
+                continue;
+            }
+            if (i < playerStart && !canvas.drawSlotFrames()) {
                 continue;
             }
             boolean enabled = !(i < inputs && isDisabledInput(slot.getContainerSlot()));
