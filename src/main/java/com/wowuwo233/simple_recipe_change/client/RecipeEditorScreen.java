@@ -1292,11 +1292,7 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
                 }
                 String cellValue = cell < this.inputItems.size() ? this.inputItems.get(cell) : null;
                 if (cellValue != null && cellValue.startsWith("fluid:")) {
-                    // 流体：没有物品贴图，画个色块 + 数量，至少能看出「这里放的是流体」
-                    graphics.fill(x + slot.x + 1, y + slot.y + 1,
-                            x + slot.x + 17, y + slot.y + 17, 0x803B6EA5);
-                    graphics.drawString(this.font, "F", x + slot.x + 6, y + slot.y + 5,
-                            0xFFFFFFFF, false);
+                    drawFluidCell(graphics, x + slot.x, y + slot.y, cellValue);
                     continue;
                 }
                 ItemStack ghost = RecipeEditorMenu.stackOf(cellValue);
@@ -1705,7 +1701,49 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
         return slotIndex == this.menu.outputMenuIndex();
     }
 
-    /** JEI 拖拽流体：写成 fluid:命名空间:路径:数量，格子里显示蓝色 F 块 */
+    /**
+     * 画流体格：用流体自己的静态贴图 + 染色，右下角标数量。
+     *
+     * <p>之前所有流体都画成同一个蓝块，根本分不清水和岩浆，这里改成读真实贴图。
+     */
+    private void drawFluidCell(GuiGraphics graphics, int x, int y, String value) {
+        String rest = value.substring("fluid:".length());
+        String id = rest;
+        String amount = "";
+        int lastColon = rest.lastIndexOf(':');
+        if (lastColon > rest.indexOf(':')) {
+            String tail = rest.substring(lastColon + 1);
+            try {
+                Integer.parseInt(tail);
+                id = rest.substring(0, lastColon);
+                amount = tail;
+            } catch (NumberFormatException ignored) {
+                // 末尾不是数字，整串当流体 ID
+            }
+        }
+        net.minecraft.world.level.material.Fluid fluid =
+                net.minecraftforge.registries.ForgeRegistries.FLUIDS.getValue(
+                        new net.minecraft.resources.ResourceLocation(id));
+        if (fluid == null || fluid == net.minecraft.world.level.material.Fluids.EMPTY) {
+            graphics.fill(x + 1, y + 1, x + 17, y + 17, 0x80FF5555);
+            return;
+        }
+        net.minecraftforge.client.extensions.common.IClientFluidTypeExtensions ext =
+                net.minecraftforge.client.extensions.common.IClientFluidTypeExtensions.of(fluid);
+        net.minecraft.client.renderer.texture.TextureAtlasSprite sprite = this.minecraft
+                .getTextureAtlas(net.minecraft.world.inventory.InventoryMenu.BLOCK_ATLAS)
+                .apply(ext.getStillTexture());
+        graphics.blit(x + 1, y + 1, 0, 16, 16, sprite);
+        int tint = ext.getTintColor();
+        if ((tint & 0xFFFFFF) != 0xFFFFFF) {
+            graphics.fill(x + 1, y + 1, x + 17, y + 17, 0x40000000 | (tint & 0xFFFFFF));
+        }
+        if (!amount.isEmpty()) {
+            graphics.drawString(this.font, amount, x + 1, y + 9, 0xFFFFFFFF, true);
+        }
+    }
+
+    /** JEI 拖拽流体：写成 fluid:命名空间:路径:数量，格子里显示流体贴图 */
     public void acceptGhostFluidDrop(int slotIndex, String fluidId, int amount) {
         if (fluidId == null || fluidId.isBlank() || slotIndex < 0
                 || slotIndex >= this.menu.inputMenuCount()) {
