@@ -378,7 +378,9 @@ public final class VanillaRecipeLookup {
                 return fromCutting(recipe, access);
             }
             if (type.isThermal()) {
-                return fromThermal(recipe, access, type);
+                Found found = fromThermal(recipe, access, type);
+                // 热力膨胀把配方数据藏在管理器里，Recipe 对象读不出东西——退回读数据包 JSON
+                return found != null ? found : fromJson(level, id, type);
             }
             if (type == RecipeType.FARMERS_COOKING) {
                 return fromCookingPot(recipe, access);
@@ -663,6 +665,126 @@ public final class VanillaRecipeLookup {
         } catch (Exception e) {
             return null;
         }
+    }
+
+    /**
+     * 直接读数据包里的配方 JSON。
+     *
+     * <p>热力膨胀这类模组把配方存在自己的管理器里，{@code Recipe} 对象只有壳子，
+     * {@code getIngredients()} 永远是空表。但 JSON 一定在数据包里：
+     * {@code data/<ns>/recipes/<path>.json}，照着解析就能拿到材料与产物。
+     *
+     * <p>顺带对所有模组通用——只要配方是数据包定义的，这个方法都能读。
+     */
+    public static Found fromJson(Level level, ResourceLocation id, RecipeType type) {
+        if (!(level instanceof net.minecraft.server.level.ServerLevel serverLevel)) {
+            return null;
+        }
+        ResourceLocation file = new ResourceLocation(id.getNamespace(),
+                "recipes/" + id.getPath() + ".json");
+        try {
+            var resource = serverLevel.getServer().getResourceManager().getResource(file);
+            if (resource.isEmpty()) {
+                return null;
+            }
+            com.google.gson.JsonObject json;
+            try (var reader = resource.get().openAsReader()) {
+                json = com.google.gson.JsonParser.parseReader(reader).getAsJsonObject();
+            }
+            List<String> cells = blankCells();
+            Set<String> distinct = new LinkedHashSet<>();
+            List<String> ingredients = jsonList(json, "ingredients", "ingredient", "inputs", "input");
+            for (int i = 0; i < 9 && i < ingredients.size(); i++) {
+                String value = ingredients.get(i);
+                if (value != null) {
+                    cells.set(i, value);
+                    distinct.add(value);
+                }
+            }
+            List<String> results = jsonList(json, "results", "result", "outputs", "output");
+            ItemStack output = ItemStack.EMPTY;
+            if (!results.isEmpty() && results.get(0) != null) {
+                String first = results.get(0);
+                if (first.startsWith("fluid:")) {
+                    // 纯流体产物：本模组产物格只放物品，跳过
+                    results.remove(0);
+                } else {
+                    String plain = first.contains("x ") ? first.substring(first.indexOf("x ") + 2) : first;
+                    ItemStack stack = stackOfId(plain);
+                    if (stack != null) {
+                        output = stack;
+                        if (first.contains("x ")) {
+                            try {
+                                output.setCount(Integer.parseInt(first.substring(0, first.indexOf("x ")).trim()));
+                            } catch (NumberFormatException ignored) {
+                                // 数量解析失败就按 1
+                            }
+                        }
+                    }
+                }
+            }
+            if (distinct.isEmpty() && output.isEmpty()) {
+                return null;
+            }
+            return build(id, type, false, cells, distinct, output, 0D,
+                    RecipeDraft.DEFAULT_COOKING_TIME);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /** 从 JSON 里按候选键名取一组材料/产物，统一转成单元格字符串 */
+    private static List<String> jsonList(com.google.gson.JsonObject json, String... keys) {
+        List<String> out = new ArrayList<>();
+        for (String key : keys) {
+            if (!json.has(key)) {
+                continue;
+            }
+            com.google.gson.JsonElement element = json.get(key);
+            if (element.isJsonArray()) {
+                for (com.google.gson.JsonElement child : element.getAsJsonArray()) {
+                    String value = jsonIngredient(child);
+                    if (value != null) {
+                        out.add(value);
+                    }
+                }
+            } else {
+                String value = jsonIngredient(element);
+                if (value != null) {
+                    out.add(value);
+                }
+            }
+            if (!out.isEmpty()) {
+                return out;
+            }
+        }
+        return out;
+    }
+
+    private static String jsonIngredient(com.google.gson.JsonElement element) {
+        if (element == null || element.isJsonNull()) {
+            return null;
+        }
+        if (element.isJsonPrimitive()) {
+            return element.getAsString();
+        }
+        if (!element.isJsonObject()) {
+            return null;
+        }
+        com.google.gson.JsonObject obj = element.getAsJsonObject();
+        if (obj.has("item")) {
+            String id = obj.get("item").getAsString();
+            int count = obj.has("count") ? obj.get("count").getAsInt() : 1;
+            return count > 1 ? count + "x " + id : id;
+        }
+        if (obj.has("tag")) {
+            return "#" + obj.get("tag").getAsString();
+        }
+        if (obj.has("fluid")) {
+            int amount = obj.has("amount") ? obj.get("amount").getAsInt() : 1000;
+            return "fluid:" + obj.get("fluid").getAsString() + ":" + amount;
+        }
+        return null;
     }
 
     /** 反射读字段并转成物品 ID：Ingredient / ItemStack / Block / Item 都认 */

@@ -64,13 +64,13 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
     // 版面纵坐标
     private static final int MODE_Y = 22;
     private static final int SEARCH_Y = 46;
-    private static final int FOUND_Y = 196;
-    private static final int CONTROLS_Y = 208;
-    private static final int LABEL_Y = 236;
+    private static final int FOUND_Y = 182;
+    private static final int CONTROLS_Y = 192;
+    private static final int LABEL_Y = 218;
     /** 配方名与文件名并排时各自的宽度：ID 可能很长，给宽一点 */
     private static final int ID_W = 253;
     private static final int FILE_X = 269;
-    private static final int FIELD_Y = 246;
+    private static final int FIELD_Y = 228;
     /**
      * 备注输入框。
      *
@@ -78,9 +78,9 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
      * 而「配方类型」标签在 202，中间正好空着。之前放到底部又开了一行，
      * 窗口涨到 420 就直接超出屏幕可用高度、顶部被裁掉了。
      */
-    private static final int NOTE_LABEL_Y = 156;
-    private static final int NOTE_Y = 166;
-    private static final int BUTTONS_Y = 270;
+    private static final int NOTE_LABEL_Y = 148;
+    private static final int NOTE_Y = 156;
+    private static final int BUTTONS_Y = 250;
 
     /**
      * 经验/成功率、处理时间/循环次数这两个框的 y。
