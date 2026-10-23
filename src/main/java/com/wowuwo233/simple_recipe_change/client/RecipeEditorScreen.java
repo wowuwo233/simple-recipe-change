@@ -398,7 +398,7 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
         this.timeField = new EditBox(this.font, this.leftPos + FIELD_X,
                 this.topPos + TIME_FIELD_Y_TWO_ROWS, FIELD_W, 18,
                 Component.literal("烧制时间"));
-        this.timeField.setMaxLength(10);
+        this.timeField.setMaxLength(48);
         this.timeField.setValue(timeText);
         this.addRenderableWidget(this.timeField);
 
@@ -1006,7 +1006,9 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
         // 只有真的查到原版配方时才回填经验/时间，否则会把用户刚填的值冲掉
         if (this.found && msg.cookingTime() > 0) {
             if (this.timeField != null) {
-                this.timeField.setValue(String.valueOf(msg.cookingTime()));
+                this.timeField.setValue(this.recipeType.thermalParamCount() > 0
+                        && msg.heat() != null && !msg.heat().isBlank()
+                        ? msg.heat() : String.valueOf(msg.cookingTime()));
             }
             if (this.xpField != null) {
                 this.xpField.setValue(KubeJsWriter.formatNumber(msg.xp()));
@@ -1757,6 +1759,9 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
         if (this.recipeType.isSequenced()) {
             // 步骤类型编码进 heat（本类型不用热度），项数就是「步骤数」
             this.createHeat = String.join(",", java.util.Arrays.copyOf(this.seqKinds, this.seqStepCount));
+        } else if (this.recipeType.thermalParamCount() > 0) {
+            // 催化剂 / 药水扩散：参数串直接存进 heat
+            this.createHeat = this.timeField == null ? "" : this.timeField.getValue().trim();
         }
         ModNetwork.requestSaveRecipe(
                 this.fileField.getValue(),

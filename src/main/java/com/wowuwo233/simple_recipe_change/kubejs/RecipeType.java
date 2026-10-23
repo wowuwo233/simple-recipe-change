@@ -88,7 +88,11 @@ public enum RecipeType {
     THERMAL_TREE_EXTRACTOR("thermal_tree_extractor", "热力膨胀 · 树木提取", "树木", Category.THERMAL, 9, 1),
     THERMAL_ROCK_GEN("thermal_rock_gen", "热力膨胀 · 造石机", "造石", Category.THERMAL, 9, 1),
     THERMAL_TREE_BOOST("thermal_tree_extractor_boost", "热力膨胀 · 树木提取增益", "树木增益", Category.THERMAL, 9, 1),
-    THERMAL_FISHER_BOOST("thermal_fisher_boost", "热力膨胀 · 自动钓鱼增益", "钓鱼增益", Category.THERMAL, 9, 1);
+    THERMAL_FISHER_BOOST("thermal_fisher_boost", "热力膨胀 · 自动钓鱼增益", "钓鱼增益", Category.THERMAL, 9, 1),
+    THERMAL_PULVERIZER_CATALYST("thermal_pulverizer_catalyst", "热力膨胀 · 粉碎催化剂", "粉碎催化", Category.THERMAL, 9, 1),
+    THERMAL_SMELTER_CATALYST("thermal_smelter_catalyst", "热力膨胀 · 熔炼催化剂", "熔炼催化", Category.THERMAL, 9, 1),
+    THERMAL_INSOLATOR_CATALYST("thermal_insolator_catalyst", "热力膨胀 · 栽培催化剂", "栽培催化", Category.THERMAL, 9, 1),
+    THERMAL_POTION_BOOST("thermal_potion_diffuser_boost", "热力膨胀 · 药水扩散增益", "药水增益", Category.THERMAL, 9, 1);
 
     /** 配方大类，决定界面布局与生成方式 */
     public enum Category {
@@ -226,6 +230,9 @@ public enum RecipeType {
         if (isCreate()) {
             return "处理时间（tick，默认 100）";
         }
+        if (thermalParamCount() > 0) {
+            return "参数（逗号分隔，顺序见提示）";
+        }
         if (isThermal()) {
             return "能耗（RF，默认 0）";
         }
@@ -248,11 +255,26 @@ public enum RecipeType {
         return category == Category.CREATE;
     }
 
+    /**
+     * 热力膨胀里要「一串数值」的类型：催化剂 4 个、药水扩散 3 个。
+     *
+     * <p>数值借 {@code heat} 字段存（逗号分隔），界面上就是那个数字框，
+     * 标签改成「参数」并给出顺序说明。
+     */
+    public int thermalParamCount() {
+        return switch (this) {
+            case THERMAL_PULVERIZER_CATALYST, THERMAL_SMELTER_CATALYST,
+                 THERMAL_INSOLATOR_CATALYST -> 4;
+            case THERMAL_POTION_BOOST -> 3;
+            default -> 0;
+        };
+    }
+
     /** 热力膨胀里形状特殊的几种：映射 / 增益 */
     public boolean isThermalSpecial() {
         return this == THERMAL_HIVE_EXTRACTOR || this == THERMAL_TREE_EXTRACTOR
                 || this == THERMAL_ROCK_GEN || this == THERMAL_TREE_BOOST
-                || this == THERMAL_FISHER_BOOST;
+                || this == THERMAL_FISHER_BOOST || thermalParamCount() > 0;
     }
 
     /** 热力膨胀的燃料类（只要材料 + 能量，没有产物） */
