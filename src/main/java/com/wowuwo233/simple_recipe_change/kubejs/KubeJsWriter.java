@@ -594,6 +594,15 @@ public final class KubeJsWriter {
                         + transitional + "', '" + transitional + "')");
                 case "cutting" -> steps.add("event.recipes.create.cutting('"
                         + transitional + "', '" + transitional + "')");
+                case "filling" -> {
+                    // 灌装步骤：这一步的格子里写流体（fluid:xxx）或物品
+                    if (stepItem == null || stepItem.isBlank()) {
+                        throw new IllegalArgumentException(
+                                "第 " + (i + 1) + " 步是「注液器：灌装」，请放入流体（fluid:xxx）或物品");
+                    }
+                    steps.add("event.recipes.create.filling('" + transitional + "', ["
+                            + renderIngredient(stepItem) + ", '" + transitional + "'])");
+                }
                 default -> throw new IllegalArgumentException("未知的步骤类型：" + kind);
             }
         }

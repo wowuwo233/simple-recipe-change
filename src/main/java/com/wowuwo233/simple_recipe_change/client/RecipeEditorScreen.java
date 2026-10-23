@@ -688,8 +688,8 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
         return "产物NBT：" + (this.carryOutputNbt ? "是" : "否");
     }
 
-    /** 序列组装可用的步骤类型。灌装要流体，本模组不处理流体，所以不提供 */
-    private static final String[] SEQ_KIND_CYCLE = {"deploying", "pressing", "cutting"};
+    /** 序列组装可用的步骤类型（Create 里能进序列的机器就这四种） */
+    private static final String[] SEQ_KIND_CYCLE = {"deploying", "pressing", "cutting", "filling"};
 
     private static String nextSeqKind(String kind) {
         for (int i = 0; i < SEQ_KIND_CYCLE.length; i++) {
@@ -700,11 +700,13 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
         return SEQ_KIND_CYCLE[0];
     }
 
+    /** 按「机器：行为」显示，和 Create 自己配方书里的叫法一致 */
     private static String seqKindName(String kind) {
         return switch (kind) {
-            case "pressing" -> "压印";
-            case "cutting" -> "切割";
-            default -> "部署";
+            case "pressing" -> "压床：压印";
+            case "cutting" -> "动力锯：切割";
+            case "filling" -> "注液器：灌装";
+            default -> "机械手：部署";
         };
     }
 

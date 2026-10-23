@@ -139,9 +139,9 @@ public class RecipeEditorMenu extends AbstractContainerMenu {
     public static final int SEQ_FAIL_X = 246;
     /** 步骤按钮：6 个并排，宽度压到 46 才排得下 */
     public static final int SEQ_BUTTON_X0 = 66;
-    public static final int SEQ_BUTTON_STEP = 51;
+    public static final int SEQ_BUTTON_STEP = 63;
     public static final int SEQ_BUTTON_Y = 112;
-    public static final int SEQ_BUTTON_W = 46;
+    public static final int SEQ_BUTTON_W = 60;
     public static final int SEQ_SLOT_Y = 136;
     /** 步骤材料格在按钮下方的居中偏移 */
     public static final int SEQ_SLOT_INSET = 14;
