@@ -1782,11 +1782,16 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
                 FLUID_SPRITES.computeIfAbsent(id, key -> this.minecraft
                         .getTextureAtlas(net.minecraft.world.inventory.InventoryMenu.BLOCK_ATLAS)
                         .apply(ext.getStillTexture()));
-        graphics.blit(x + 1, y + 1, 0, 16, 16, sprite);
+        // 画成「储罐」的样子：深色外框 + 竖长条的流体，和机器 UI 里的水槽一致
+        graphics.fill(x + 1, y + 1, x + 17, y + 17, 0xFF2A2A2A);
+        graphics.blit(x + 4, y + 2, 0, 10, 14, sprite);
         int tint = ext.getTintColor();
         if ((tint & 0xFFFFFF) != 0xFFFFFF) {
-            graphics.fill(x + 1, y + 1, x + 17, y + 17, 0x40000000 | (tint & 0xFFFFFF));
+            graphics.fill(x + 4, y + 2, x + 14, y + 16, 0x40000000 | (tint & 0xFFFFFF));
         }
+        // 顶/底两道高光，读起来像个玻璃槽
+        graphics.fill(x + 4, y + 2, x + 14, y + 3, 0x60FFFFFF);
+        graphics.fill(x + 4, y + 15, x + 14, y + 16, 0x40000000);
         if (!amount.isEmpty()) {
             // 16px 的格子放不下 4 位数，缩到一半画，右下角对齐
             graphics.pose().pushPose();

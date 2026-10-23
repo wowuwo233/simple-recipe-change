@@ -416,12 +416,15 @@ public final class KubeJsWriter {
                 sb.append("  ").append(Math.max(1, d.cookingTime())).append(")");
             }
             case "pulverizer_catalyst", "smelter_catalyst", "insolator_catalyst" -> {
+                // 字段顺序按 kubejs-thermal 的 schema 声明：
+                // ingredient, primary_mod, secondary_mod, energy_mod, min_chance, use_chance
                 double[] p = d.params(4, new double[]{1D, 1D, 1D, 0.1D});
                 sb.append("  ").append(need(cell.apply(0), "催化剂材料")).append(",\n");
-                sb.append("  ").append(formatNumber(p[0])).append(",\n");
-                sb.append("  ").append(formatNumber(p[1])).append(",\n");
-                sb.append("  ").append(formatNumber(p[2])).append(",\n");
-                sb.append("  ").append(formatNumber(p[3])).append(")");
+                sb.append("  ").append(formatNumber(p[0])).append(",\n");   // 主产物倍数
+                sb.append("  ").append(formatNumber(p[1])).append(",\n");   // 副产物倍数
+                sb.append("  ").append(formatNumber(p[2])).append(",\n");   // 能耗倍数
+                sb.append("  0,\n");                                        // 最低几率，界面不开放
+                sb.append("  ").append(formatNumber(p[3])).append(")");       // 消耗几率
             }
             case "potion_diffuser_boost" -> {
                 double[] p = d.params(3, new double[]{1D, 0D, 1D});

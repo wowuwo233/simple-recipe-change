@@ -86,7 +86,7 @@ public record RecipeTypeSpec(
             default -> {
                 if (type.isThermal()) {
                     yield type.thermalParamCount() > 0
-                            ? "参数（逗号分隔，顺序见提示）" : "能耗（RF，默认 0）";
+                            ? "参数：主/副/能耗倍数,几率" : "能耗（RF，默认 0）";
                 }
                 yield "烧制时间（tick，默认 " + base.defaultTime() + "）";
             }
