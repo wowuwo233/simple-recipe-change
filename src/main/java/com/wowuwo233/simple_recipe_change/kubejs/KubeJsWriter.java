@@ -156,6 +156,8 @@ public final class KubeJsWriter {
             case THERMAL -> {
                 if (d.type().isThermalFuel()) {
                     appendThermalFuel(sb, d);
+                } else if (d.type().isThermalSpecial()) {
+                    appendThermalSpecial(sb, d, output);
                 } else {
                     appendThermal(sb, d, output);
                 }
@@ -372,6 +374,69 @@ public final class KubeJsWriter {
         if (machine.hasKeepHeldItem() && d.keepHeldItem()) {
             sb.append(".keepHeldItem(true)");
         }
+    }
+
+    /**
+     * 热力膨胀 · 映射与增益。
+     *
+     * <p>这几种的签名各不相同，靠借字段凑齐参数：
+     * <ul>
+     *   <li>hive_extractor(hive, item, fluid)</li>
+     *   <li>tree_extractor(trunk, leaves, result, fluid)</li>
+     *   <li>rock_gen(adjacent, below, result, time) —— 时间借 cookingTime</li>
+     *   <li>tree_extractor_boost(ingredient, output, outputMod, cycles) —— 借 xp / cookingTime</li>
+     *   <li>fisher_boost(ingredient, lootTable, outputMod, useChance) —— lootTable 借 heat</li>
+     * </ul>
+     */
+    private static void appendThermalSpecial(StringBuilder sb, RecipeDraft d, String output) {
+        List<String> cells = d.inputCells();
+        java.util.function.IntFunction<String> cell = i ->
+                i < cells.size() && cells.get(i) != null && !cells.get(i).isBlank()
+                        ? renderIngredient(cells.get(i)) : null;
+
+        String method = d.type().kubeJsMethod();
+        sb.append(d.type().eventPath()).append("(\n");
+        switch (method) {
+            case "hive_extractor" -> {
+                sb.append("  ").append(need(cell.apply(0), "蜂箱方块")).append(",\n");
+                sb.append("  ").append(output).append(",\n");
+                sb.append("  ").append(need(cell.apply(1), "产出流体")).append(")");
+            }
+            case "tree_extractor" -> {
+                sb.append("  ").append(need(cell.apply(0), "树干方块")).append(",\n");
+                sb.append("  ").append(need(cell.apply(1), "树叶方块")).append(",\n");
+                sb.append("  ").append(output).append(",\n");
+                sb.append("  ").append(need(cell.apply(2), "产出流体")).append(")");
+            }
+            case "rock_gen" -> {
+                sb.append("  ").append(need(cell.apply(0), "相邻方块")).append(",\n");
+                sb.append("  ").append(need(cell.apply(1), "下方方块")).append(",\n");
+                sb.append("  ").append(output).append(",\n");
+                sb.append("  ").append(Math.max(1, d.cookingTime())).append(")");
+            }
+            case "tree_extractor_boost" -> {
+                sb.append("  ").append(need(cell.apply(0), "材料")).append(",\n");
+                sb.append("  ").append(output).append(",\n");
+                sb.append("  ").append(formatNumber(d.xp() <= 0D ? 1D : d.xp())).append(",\n");
+                sb.append("  ").append(Math.max(1, d.cookingTime())).append(")");
+            }
+            default -> {
+                // fisher_boost：材料、战利品表、产出倍率、使用概率
+                String table = d.heat() == null || d.heat().isBlank()
+                        ? "'minecraft:gameplay/fishing'" : "'" + d.heat() + "'";
+                sb.append("  ").append(need(cell.apply(0), "材料")).append(",\n");
+                sb.append("  ").append(table).append(",\n");
+                sb.append("  ").append(formatNumber(d.xp() <= 0D ? 1D : d.xp())).append(",\n");
+                sb.append("  ").append(formatNumber(d.cookingTime() <= 0 ? 1D : d.cookingTime())).append(")");
+            }
+        }
+    }
+
+    private static String need(String value, String what) {
+        if (value == null) {
+            throw new IllegalArgumentException("这个类型必须填「" + what + "」");
+        }
+        return value;
     }
 
     /**

@@ -81,7 +81,14 @@ public enum RecipeType {
     THERMAL_DISENCHANTMENT_FUEL("thermal_disenchantment_fuel", "热力膨胀 · 祛魔燃料", "祛魔", Category.THERMAL, 9, 1),
     THERMAL_GOURMAND_FUEL("thermal_gourmand_fuel", "热力膨胀 · 美食燃料", "美食", Category.THERMAL, 9, 1),
     THERMAL_COMPRESSION_FUEL("thermal_compression_fuel", "热力膨胀 · 压缩燃料", "压缩", Category.THERMAL, 9, 1),
-    THERMAL_MAGMATIC_FUEL("thermal_magmatic_fuel", "热力膨胀 · 岩浆燃料", "岩浆", Category.THERMAL, 9, 1);
+    THERMAL_MAGMATIC_FUEL("thermal_magmatic_fuel", "热力膨胀 · 岩浆燃料", "岩浆", Category.THERMAL, 9, 1),
+
+    // 映射 / 增益：槽位形状各不相同，生成时按类型单独拼参数
+    THERMAL_HIVE_EXTRACTOR("thermal_hive_extractor", "热力膨胀 · 蜂箱提取", "蜂箱", Category.THERMAL, 9, 1),
+    THERMAL_TREE_EXTRACTOR("thermal_tree_extractor", "热力膨胀 · 树木提取", "树木", Category.THERMAL, 9, 1),
+    THERMAL_ROCK_GEN("thermal_rock_gen", "热力膨胀 · 造石机", "造石", Category.THERMAL, 9, 1),
+    THERMAL_TREE_BOOST("thermal_tree_extractor_boost", "热力膨胀 · 树木提取增益", "树木增益", Category.THERMAL, 9, 1),
+    THERMAL_FISHER_BOOST("thermal_fisher_boost", "热力膨胀 · 自动钓鱼增益", "钓鱼增益", Category.THERMAL, 9, 1);
 
     /** 配方大类，决定界面布局与生成方式 */
     public enum Category {
@@ -239,6 +246,13 @@ public enum RecipeType {
     /** 是否是机械动力类型（由 kubejs-create 提供 schema） */
     public boolean isCreate() {
         return category == Category.CREATE;
+    }
+
+    /** 热力膨胀里形状特殊的几种：映射 / 增益 */
+    public boolean isThermalSpecial() {
+        return this == THERMAL_HIVE_EXTRACTOR || this == THERMAL_TREE_EXTRACTOR
+                || this == THERMAL_ROCK_GEN || this == THERMAL_TREE_BOOST
+                || this == THERMAL_FISHER_BOOST;
     }
 
     /** 热力膨胀的燃料类（只要材料 + 能量，没有产物） */
