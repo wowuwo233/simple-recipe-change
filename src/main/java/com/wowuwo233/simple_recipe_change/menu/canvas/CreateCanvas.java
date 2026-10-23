@@ -1,9 +1,17 @@
 package com.wowuwo233.simple_recipe_change.menu.canvas;
 
+import net.minecraft.client.gui.GuiGraphics;
+
 import static com.wowuwo233.simple_recipe_change.menu.RecipeEditorMenu.*;
 
 /** 机械动力：处理配方（3×3 + 副产物）与序列组装（输入 / 过渡 / 6 步 / 失败产物） */
 public final class CreateCanvas implements RecipeCanvas {
+
+    /** 序列组装是「一长串步骤」，方框比凹槽更清楚，那边保留方框 */
+    @Override
+    public boolean drawSlotFrames() {
+        return true;
+    }
 
     @Override
     public void layout(CanvasContext ctx, SlotPlacer placer) {
@@ -18,6 +26,29 @@ public final class CreateCanvas implements RecipeCanvas {
         placer.output(CREATE_OUTPUT_X, CREATE_GRID_Y + SLOT_SIZE);
         for (int i = 0; i < ctx.extraOutputs(); i++) {
             placer.extra(i, EXTRA_SLOT_X0 + i * EXTRA_SLOT_STEP, CREATE_EXTRA_ROW_Y);
+        }
+    }
+
+    @Override
+    public void background(GuiGraphics graphics, int leftPos, int topPos, CanvasContext ctx) {
+        if (ctx.type().isSequenced()) {
+            return;
+        }
+        for (int i = 0; i < CREATE_MATERIAL_SLOTS; i++) {
+            CanvasPainter.recessAtSlot(graphics,
+                    leftPos + CREATE_GRID_X + (i % 3) * SLOT_SIZE,
+                    topPos + CREATE_GRID_Y + (i / 3) * SLOT_SIZE);
+        }
+        CanvasPainter.recessAtSlot(graphics, leftPos + CREATE_OUTPUT_X,
+                topPos + CREATE_GRID_Y + SLOT_SIZE);
+        CanvasPainter.arrowRight(graphics,
+                leftPos + CREATE_GRID_X + 3 * SLOT_SIZE + 4,
+                leftPos + CREATE_OUTPUT_X - 4,
+                topPos + CREATE_GRID_Y + SLOT_SIZE + 9);
+        for (int i = 0; i < ctx.extraOutputs(); i++) {
+            CanvasPainter.recessAtSlot(graphics,
+                    leftPos + EXTRA_SLOT_X0 + i * EXTRA_SLOT_STEP,
+                    topPos + CREATE_EXTRA_ROW_Y);
         }
     }
 

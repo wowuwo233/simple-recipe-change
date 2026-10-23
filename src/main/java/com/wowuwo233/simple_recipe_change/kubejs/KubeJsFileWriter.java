@@ -6,6 +6,7 @@ import net.minecraftforge.fml.loading.FMLPaths;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -90,6 +91,64 @@ public final class KubeJsFileWriter {
      * 删除一条已写过的配方：先从 .js 文件里整块删掉，再移除索引记录。
      * 手写的脚本内容不受影响。
      */
+    /**
+     * 只改一条配方的备注，不动配方本身。
+     *
+     * <p>做法是文本手术：定位 BEGIN/END 标记，把中间那几行 {@code //} 注释替换掉。
+     * 比「重建整块」安全——重建需要把索引条目还原成 RecipeDraft，容易丢字段。
+     *
+     * @param note 新备注，允许换行；空串表示删除备注
+     */
+    public static Result updateNote(String blockId, String fileName, String note) {
+        try {
+            Path file = serverScriptsDir().resolve(KubeJsWriter.normalizeFileName(fileName));
+            if (!Files.exists(file)) {
+                return new Result(false, "找不到脚本文件：" + fileName, null, null);
+            }
+            List<String> lines = new ArrayList<>(Files.readAllLines(file, StandardCharsets.UTF_8));
+
+            int begin = -1;
+            int end = -1;
+            for (int i = 0; i < lines.size(); i++) {
+                String text = lines.get(i).trim();
+                if (text.startsWith("// ==== SIMPLE_RECIPE_CHANGE:BEGIN " + blockId)) {
+                    begin = i;
+                } else if (text.startsWith("// ==== SIMPLE_RECIPE_CHANGE:END " + blockId)) {
+                    end = i;
+                    break;
+                }
+            }
+            if (begin < 0 || end < 0) {
+                return new Result(false, "脚本里找不到这条配方：" + blockId, null, null);
+            }
+
+            // 跳过紧跟在 BEGIN 后面的「自动生成，请勿手动编辑」提示行
+            int insertAt = begin + 1;
+            if (insertAt < end && lines.get(insertAt).trim().startsWith("// 由")) {
+                insertAt++;
+            }
+            // 删掉原有的备注行（连续的 // 开头）
+            int cursor = insertAt;
+            while (cursor < end && lines.get(cursor).trim().startsWith("//")) {
+                lines.remove(cursor);
+                end--;
+            }
+
+            if (note != null && !note.isBlank()) {
+                List<String> noteLines = new ArrayList<>();
+                for (String line : note.split("\r?\n")) {
+                    noteLines.add("// " + line.strip());
+                }
+                lines.addAll(insertAt, noteLines);
+            }
+
+            Files.write(file, lines, StandardCharsets.UTF_8);
+            return new Result(true, "备注已更新", file.toString(), null);
+        } catch (Exception e) {
+            return new Result(false, "更新备注失败：" + e.getMessage(), null, null);
+        }
+    }
+
     public static Result deleteEntry(String blockId) {
         try {
             RecipeIndexEntry entry = RecipeIndex.find(blockId);

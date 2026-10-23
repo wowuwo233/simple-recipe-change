@@ -70,6 +70,8 @@ public final class ModNetwork {
                 DeleteIndexPacket::encode, DeleteIndexPacket::decode, DeleteIndexPacket::handle);
         CHANNEL.registerMessage(id++, PickItemPacket.class,
                 PickItemPacket::encode, PickItemPacket::decode, PickItemPacket::handle);
+        CHANNEL.registerMessage(id++, SetNotePacket.class,
+                SetNotePacket::encode, SetNotePacket::decode, SetNotePacket::handle);
         CHANNEL.registerMessage(id++, SyncEditorPacket.class,
                 SyncEditorPacket::encode, SyncEditorPacket::decode, SyncEditorPacket::handle);
         CHANNEL.registerMessage(id++, LoadRecipeByIdPacket.class,
@@ -655,6 +657,59 @@ public final class ModNetwork {
             });
             ctx.setPacketHandled(true);
         }
+    }
+
+    /**
+     * 客户端：改一条配方的备注。
+     *
+     * <p>只动脚本里那几行 {@code //} 注释，不重建配方块——重建要还原成 RecipeDraft，
+     * 容易丢 keepHeldItem 之类的字段。
+     */
+    public record SetNotePacket(String blockId, String note) {
+        public static void encode(SetNotePacket msg, FriendlyByteBuf buf) {
+            buf.writeUtf(msg.blockId == null ? "" : msg.blockId, 256);
+            buf.writeUtf(msg.note == null ? "" : msg.note, 512);
+        }
+
+        public static SetNotePacket decode(FriendlyByteBuf buf) {
+            return new SetNotePacket(buf.readUtf(256), buf.readUtf(512));
+        }
+
+        public static void handle(SetNotePacket msg, Supplier<NetworkEvent.Context> ctxSupplier) {
+            NetworkEvent.Context ctx = ctxSupplier.get();
+            ctx.enqueueWork(() -> {
+                ServerPlayer player = ctx.getSender();
+                if (player == null || !canWrite(player)) {
+                    return;
+                }
+                RecipeIndexEntry entry = RecipeIndex.find(msg.blockId);
+                if (entry == null) {
+                    sendSaveResult(player, false, "找不到这条配方：" + msg.blockId, null);
+                    return;
+                }
+                KubeJsFileWriter.Result result = KubeJsFileWriter.updateNote(
+                        entry.blockId(), entry.fileName(), msg.note);
+                if (!result.ok()) {
+                    sendSaveResult(player, false, result.message(), null);
+                    return;
+                }
+                // 索引里的备注也一起更新，列表和编辑器才看得到
+                RecipeIndex.upsert(new RecipeIndexEntry(entry.blockId(), entry.fileName(),
+                        entry.operation(), entry.type(), entry.shapeless(), entry.mirrored(),
+                        entry.recipeId(), entry.sourceRecipeId(), entry.outputItem(),
+                        entry.outputCount(), entry.outputNbt(), entry.cells(), entry.xp(),
+                        entry.cookingTime(), entry.extraOutputs(), entry.machine(), entry.heat(),
+                        msg.note == null ? "" : msg.note));
+                sendSaveResult(player, true, "备注已更新", result.path());
+                sendIndexList(player, true, "");
+            });
+            ctx.setPacketHandled(true);
+        }
+    }
+
+    /** 客户端：改备注 */
+    public static void requestSetNote(String blockId, String note) {
+        CHANNEL.sendToServer(new SetNotePacket(blockId, note));
     }
 
     /** 客户端：界面建好后请求补发一次状态 */

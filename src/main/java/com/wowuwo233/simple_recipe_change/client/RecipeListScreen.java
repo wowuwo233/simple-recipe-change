@@ -35,6 +35,9 @@ public class RecipeListScreen extends Screen {
     private static final int COLOR_TEXT_DIM = 0xFF9A9A9A;
 
     private final RecipeEditorScreen parent;
+    /** 备注编辑框：点某一行进入编辑，回车保存 */
+    private net.minecraft.client.gui.components.EditBox noteField;
+    private RecipeIndexEntry noteTarget;
     private List<RecipeIndexEntry> entries;
     private int page = 0;
 
@@ -118,6 +121,29 @@ public class RecipeListScreen extends Screen {
                 })
                 .bounds(left + PANEL_WIDTH - 92, top + PANEL_HEIGHT - 26, 84, 18)
                 .build());
+
+        // 备注编辑框：平时隐藏，点某一行才显示
+        this.noteField = new net.minecraft.client.gui.components.EditBox(
+                this.font, left + 8, top + PANEL_HEIGHT - 52, PANEL_WIDTH - 16, 18,
+                Component.literal("备注"));
+        this.noteField.setMaxLength(200);
+        this.noteField.setHint(Component.literal("备注：写点什么，回车保存"));
+        this.noteField.setVisible(this.noteTarget != null);
+        if (this.noteTarget != null) {
+            this.noteField.setValue(this.noteTarget.note() == null ? "" : this.noteTarget.note());
+        }
+        this.addRenderableWidget(this.noteField);
+    }
+
+    /** 点行开始编辑备注 */
+    private void startEditing(RecipeIndexEntry entry) {
+        this.noteTarget = entry;
+        this.rebuild();
+        if (this.noteField != null) {
+            this.noteField.setValue(entry.note() == null ? "" : entry.note());
+            this.setFocused(this.noteField);
+            this.noteField.setFocused(true);
+        }
     }
 
     @Override
@@ -136,6 +162,10 @@ public class RecipeListScreen extends Screen {
 
         String total = this.entries.isEmpty() ? "" : "（共 " + this.entries.size() + " 条）";
         graphics.drawString(this.font, "我的配方  " + total, left + 8, top + 6, COLOR_TEXT, false);
+        if (this.noteTarget != null) {
+            graphics.drawString(this.font, "改备注（回车保存，Esc 取消）", left + 8,
+                    top + PANEL_HEIGHT - 64, COLOR_TEXT_DIM, false);
+        }
 
         if (this.entries.isEmpty()) {
             graphics.drawString(this.font, "还没有写过配方。", left + 12, top + 40, COLOR_TEXT_DIM, false);
@@ -162,11 +192,9 @@ public class RecipeListScreen extends Screen {
                 graphics.drawString(this.font, title, left + 30, rowY + 3, COLOR_TEXT, false);
 
                 String sub = entry.operation().label() + " · " + entry.fileName();
-                // 备注显示在行右侧的空白处（原来那里是空的）
                 String note = entry.note() == null ? "" : entry.note().trim();
                 if (!note.isEmpty()) {
-                    graphics.drawString(this.font, trim(note, 60), left + 300, rowY + 3,
-                            COLOR_TEXT_DIM, false);
+                    sub = sub + "  ·  备注：" + note;
                 }
                 graphics.drawString(this.font, trim(sub, 150), left + 30, rowY + 13,
                         COLOR_TEXT_DIM, false);

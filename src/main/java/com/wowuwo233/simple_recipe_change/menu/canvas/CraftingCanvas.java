@@ -30,11 +30,11 @@ public final class CraftingCanvas implements RecipeCanvas {
             for (int col = 0; col < 3; col++) {
                 int x = gridX + col * CELL;
                 int y = topPos + CRAFT_GRID_Y + row * CELL;
-                drawRecess(graphics, x, y, CELL);
+                CanvasPainter.recessAtSlot(graphics, x, y);
             }
         }
         // 产物凹槽
-        drawRecess(graphics, outX, rowY, CELL);
+        CanvasPainter.recessAtSlot(graphics, outX, rowY);
 
         // 中间的箭头：从网格右侧指向产物
         int arrowY = rowY + 8;
