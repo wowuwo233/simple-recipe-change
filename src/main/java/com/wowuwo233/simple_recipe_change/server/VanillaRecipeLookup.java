@@ -378,7 +378,8 @@ public final class VanillaRecipeLookup {
                 return fromCutting(recipe, access);
             }
             if (type.isThermal()) {
-                Found found = fromThermal(recipe, access, type);
+                Found machine = fromThermalMachine(recipe, type);
+                Found found = machine != null ? machine : fromThermal(recipe, access, type);
                 // 热力膨胀把配方数据藏在管理器里，Recipe 对象读不出东西——退回读数据包 JSON
                 return found != null ? found : fromJson(level, id, type);
             }
@@ -665,6 +666,93 @@ public final class VanillaRecipeLookup {
         } catch (Exception e) {
             return null;
         }
+    }
+
+    /**
+     * 热力膨胀的机器配方：壳子 Recipe 里持有一个 {@code IMachineRecipe}，反射取出来读。
+     *
+     * <p>字段名不确定，所以按**类型名**扫：哪个字段的类型以 IMachineRecipe 结尾就是它。
+     * 这样不管 Thermal 内部叫什么都能命中。
+     */
+    @SuppressWarnings("unchecked")
+    private static Found fromThermalMachine(Recipe<?> recipe, RecipeType type) {
+        Object machine = null;
+        if (recipe.getClass().getName().endsWith("IMachineRecipe")) {
+            machine = recipe;
+        } else {
+            for (java.lang.reflect.Field f : recipe.getClass().getDeclaredFields()) {
+                if (f.getType().getName().endsWith("IMachineRecipe")) {
+                    try {
+                        f.setAccessible(true);
+                        machine = f.get(recipe);
+                    } catch (Exception ignored) {
+                        // 拿不到就继续找
+                    }
+                    if (machine != null) {
+                        break;
+                    }
+                }
+            }
+        }
+        if (machine == null) {
+            return null;
+        }
+
+        List<String> cells = blankCells();
+        Set<String> distinct = new LinkedHashSet<>();
+        int cell = 0;
+        if (call(machine, "getInputItems") instanceof List<?> items) {
+            for (Object item : items) {
+                if (item instanceof ItemStack stack && !stack.isEmpty() && cell < 9) {
+                    String id = stack.getCount() > 1
+                            ? stack.getCount() + "x " + idOf(stack) : idOf(stack);
+                    cells.set(cell++, id);
+                    distinct.add(id);
+                }
+            }
+        }
+        if (call(machine, "getInputFluids") instanceof List<?> fluids) {
+            for (Object fluid : fluids) {
+                if (cell >= 9) {
+                    break;
+                }
+                String id = fluidCell(fluid);
+                if (id != null) {
+                    cells.set(cell++, id);
+                    distinct.add(id);
+                }
+            }
+        }
+        if (distinct.isEmpty()) {
+            return null;
+        }
+
+        ItemStack output = ItemStack.EMPTY;
+        if (call(machine, "getOutputItems") instanceof List<?> outs && !outs.isEmpty()
+                && outs.get(0) instanceof ItemStack first) {
+            output = first.copy();
+        }
+        return build(recipe.getId(), type, false, cells, distinct, output, 0D,
+                RecipeDraft.DEFAULT_COOKING_TIME);
+    }
+
+    /** FluidStack -> fluid:ns:path:amount */
+    private static String fluidCell(Object fluidStack) {
+        if (fluidStack == null) {
+            return null;
+        }
+        Object fluid = call(fluidStack, "getFluid");
+        Object amount = call(fluidStack, "getAmount");
+        if (fluid == null) {
+            return null;
+        }
+        ResourceLocation key = ForgeRegistries.FLUIDS.getKey(
+                (net.minecraft.world.level.material.Fluid) fluid);
+        if (key == null) {
+            return null;
+        }
+        int mb = amount instanceof Integer i ? i : 1000;
+        return "fluid:" + key + ":" + mb;
     }
 
     /**
