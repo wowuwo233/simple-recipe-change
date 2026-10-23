@@ -1566,10 +1566,14 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
                 continue;
             }
             if (button == 1) {
-                // 右键：空格用「上次拖/选的物品」填上，有内容则清空
+                // 右键：空格填「最近一次填过的内容」，有内容则清空。
+                // 直接读相邻格子而不是记字段——拖拽落下的时序不稳，记字段会慢一拍
                 String current = cell < this.inputItems.size() ? this.inputItems.get(cell) : null;
-                if ((current == null || current.isBlank()) && this.lastPickedItem != null) {
-                    setInput(cell, this.lastPickedItem);
+                if (current == null || current.isBlank()) {
+                    String source = nearestFilledInput(cell);
+                    if (source != null) {
+                        setInput(cell, source);
+                    }
                 } else {
                     setInput(cell, null);
                 }
@@ -1856,12 +1860,41 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
         if (id == null) {
             return;
         }
+        if (slotIndex < this.menu.inputMenuCount()
+                && isDisabledInput(this.menu.slots.get(slotIndex).getContainerSlot())) {
+            return;
+        }
         this.lastPickedItem = id;
         if (slotIndex < this.menu.inputMenuCount()) {
             setInput(this.menu.slots.get(slotIndex).getContainerSlot(), id);
         } else {
             ModNetwork.requestPickItem(id);
         }
+    }
+
+    /**
+     * 找离 {@code cell} 最近的非空输入格，用来给右键「复制填充」取内容。
+     *
+     * <p>先往前找、再往后找——和玩家「先放一格、再右键补旁边几格」的习惯一致。
+     */
+    private String nearestFilledInput(int cell) {
+        for (int offset = 1; offset < this.inputItems.size(); offset++) {
+            int back = cell - offset;
+            if (back >= 0 && back < this.inputItems.size()) {
+                String value = this.inputItems.get(back);
+                if (value != null && !value.isBlank() && !isDisabledInput(back)) {
+                    return value;
+                }
+            }
+            int forward = cell + offset;
+            if (forward >= 0 && forward < this.inputItems.size()) {
+                String value = this.inputItems.get(forward);
+                if (value != null && !value.isBlank() && !isDisabledInput(forward)) {
+                    return value;
+                }
+            }
+        }
+        return null;
     }
 
     private boolean isDisabledInput(int index) {
