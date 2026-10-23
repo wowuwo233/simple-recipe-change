@@ -1739,7 +1739,13 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
             graphics.fill(x + 1, y + 1, x + 17, y + 17, 0x40000000 | (tint & 0xFFFFFF));
         }
         if (!amount.isEmpty()) {
-            graphics.drawString(this.font, amount, x + 1, y + 9, 0xFFFFFFFF, true);
+            // 16px 的格子放不下 4 位数，缩到一半画，右下角对齐
+            graphics.pose().pushPose();
+            graphics.pose().translate(x + 17, y + 17, 200);
+            graphics.pose().scale(0.5F, 0.5F, 1F);
+            int width = this.font.width(amount);
+            graphics.drawString(this.font, amount, -width, -8, 0xFFFFFFFF, true);
+            graphics.pose().popPose();
         }
     }
 
