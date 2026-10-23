@@ -65,7 +65,7 @@ public class RecipeEditorMenu extends AbstractContainerMenu {
      * （{@code leftPos}/{@code topPos} 是 init 时算的），切换类型时重建会带出
      * 一堆状态重置的坑；共用一套坐标最省事，代价只是别的类型下方多留了点空。
      */
-    public static final int IMAGE_HEIGHT = 356;
+    public static final int IMAGE_HEIGHT = 336;
     public static final int SLOT_SIZE = 18;
 
     /** 合成类：3×3 网格的行位置 */
@@ -178,8 +178,8 @@ public class RecipeEditorMenu extends AbstractContainerMenu {
      * 背包跟着提上来，窗口高度才收得到 370。
      */
     public static final int PLAYER_X = 154;
-    public static final int PLAYER_Y = 282;
-    public static final int HOTBAR_Y = 338;
+    public static final int PLAYER_Y = 262;
+    public static final int HOTBAR_Y = 318;
 
     /** 背包的实际 y（序列组装要往下让） */
     public int playerY() {

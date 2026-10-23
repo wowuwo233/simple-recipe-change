@@ -500,6 +500,27 @@ public final class VanillaRecipeLookup {
                 result = stack;
             }
         }
+        // 映射类（rock_gen / hive_extractor / tree_extractor）没有标准材料表，按字段读
+        if (distinct.isEmpty()) {
+            String[] fieldNames = {"adjacent", "below", "hive", "trunk", "leaves", "item"};
+            int cell = 0;
+            for (String name : fieldNames) {
+                String id = fieldAsId(recipe, name);
+                if (id != null) {
+                    cells.set(cell++, id);
+                    distinct.add(id);
+                }
+            }
+            if (result == null || result.isEmpty()) {
+                String id = fieldAsId(recipe, "result");
+                if (id != null) {
+                    ItemStack stack = stackOfId(id);
+                    if (stack != null) {
+                        result = stack;
+                    }
+                }
+            }
+        }
         if (distinct.isEmpty() && (result == null || result.isEmpty())) {
             // 什么都读不出来：宁可报「打不开」，也不要开一个空界面让人以为坏了
             return null;
@@ -642,6 +663,27 @@ public final class VanillaRecipeLookup {
         } catch (Exception e) {
             return null;
         }
+    }
+
+    /** 反射读字段并转成物品 ID：Ingredient / ItemStack / Block / Item 都认 */
+    private static String fieldAsId(Object target, String name) {
+        Object value = field(target, name);
+        if (value instanceof Ingredient ingredient) {
+            return describe(ingredient);
+        }
+        if (value instanceof ItemStack stack) {
+            return stack.isEmpty() ? null : idOf(stack);
+        }
+        if (value instanceof net.minecraft.world.level.ItemLike itemLike) {
+            return idOf(new ItemStack(itemLike));
+        }
+        return null;
+    }
+
+    private static ItemStack stackOfId(String id) {
+        net.minecraft.world.item.Item item = ForgeRegistries.ITEMS.getValue(
+                new ResourceLocation(id));
+        return item == null ? null : new ItemStack(item);
     }
 
     /** 反射读公有字段（Create 的 {@code resultPool} 是 public field，没有 getter） */
