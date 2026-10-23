@@ -52,12 +52,15 @@ public class TypePickerScreen extends Screen {
      *   <li>机械动力的机器：type 是处理配方，machine 具体机器</li>
      * </ul>
      */
-    private record Row(RecipeType.Group group, RecipeType type, CreateMachine machine) {
+    private record Row(RecipeType.Group group, RecipeType type, CreateMachine machine,
+                       boolean subheader) {
     }
 
     private final RecipeEditorScreen parent;
     private final Set<RecipeType.Group> expanded = EnumSet.noneOf(RecipeType.Group.class);
     private int scroll;
+    /** 「处理配方」下面的 14 台机器是否展开（和分组折叠一样，默认按当前类型决定） */
+    private boolean machinesOpen;
 
     public TypePickerScreen(RecipeEditorScreen parent) {
         super(Component.literal("选择配方类型"));
@@ -67,6 +70,8 @@ public class TypePickerScreen extends Screen {
         if (current != null && ModCompat.available(current.group())) {
             expanded.add(current.group());
         }
+        // 当前就在用某台机器时，进来就能看到是哪台
+        this.machinesOpen = current == RecipeType.CREATE_PROCESSING;
     }
 
     /** 按当前展开状态算出要显示的行 */
@@ -76,7 +81,7 @@ public class TypePickerScreen extends Screen {
             if (!ModCompat.available(group)) {
                 continue;
             }
-            rows.add(new Row(group, null, null));
+            rows.add(new Row(group, null, null, false));
             if (!expanded.contains(group)) {
                 continue;
             }
@@ -84,12 +89,16 @@ public class TypePickerScreen extends Screen {
                 if (type.group() != group) {
                     continue;
                 }
-                rows.add(new Row(group, type, null));
-                // 机械动力的 14 台处理机器挂在「处理配方」下面，点一下直接选中机器
                 if (type == RecipeType.CREATE_PROCESSING) {
-                    for (CreateMachine machine : CreateMachine.values()) {
-                        rows.add(new Row(group, type, machine));
+                    // 处理配方本身是个二级标题：点它展开/收起机器，点机器才算选中
+                    rows.add(new Row(group, type, null, true));
+                    if (machinesOpen) {
+                        for (CreateMachine machine : CreateMachine.values()) {
+                            rows.add(new Row(group, type, machine, false));
+                        }
                     }
+                } else {
+                    rows.add(new Row(group, type, null, false));
                 }
             }
         }
@@ -149,6 +158,12 @@ public class TypePickerScreen extends Screen {
                     // ▾ 展开 / ▸ 折叠
                     graphics.drawString(this.font, open ? "▾ " + row.group().label()
                             : "▸ " + row.group().label(), x + 4, y + 5, COLOR_ACCENT, false);
+                } else if (row.subheader()) {
+                    graphics.fill(x, y, x + width, y + height - 1,
+                            hover ? COLOR_HEADER_HOVER : COLOR_ROW);
+                    graphics.drawString(this.font,
+                            machinesOpen ? "  ▾ " + row.type().label() : "  ▸ " + row.type().label(),
+                            x + 4, y + 4, COLOR_ACCENT, false);
                 } else {
                     boolean machineRow = row.machine() != null;
                     boolean current = machineRow
@@ -193,6 +208,12 @@ public class TypePickerScreen extends Screen {
                 if (!expanded.remove(row.group())) {
                     expanded.add(row.group());
                 }
+                this.scroll = Math.min(this.scroll, maxScroll(visibleRows()));
+                return true;
+            }
+            if (inside && row.subheader()) {
+                // 点「处理配方」：展开 / 收起下面的机器
+                this.machinesOpen = !this.machinesOpen;
                 this.scroll = Math.min(this.scroll, maxScroll(visibleRows()));
                 return true;
             }
