@@ -462,15 +462,48 @@ public final class VanillaRecipeLookup {
     private static Found fromThermal(Recipe<?> recipe, RegistryAccess access, RecipeType type) {
         List<String> cells = blankCells();
         Set<String> distinct = new LinkedHashSet<>();
+        // 热力膨胀的配方类没走标准接口，getIngredients() 常返回空表，这里退回反射
+        List<Object> raw = new ArrayList<>();
         List<Ingredient> ingredients = recipe.getIngredients();
-        for (int i = 0; i < 9 && i < ingredients.size(); i++) {
-            String id = describe(ingredients.get(i));
+        if (!ingredients.isEmpty()) {
+            raw.addAll(ingredients);
+        } else {
+            Object input = call(recipe, "getInput");
+            if (input == null) {
+                input = call(recipe, "getInputs");
+            }
+            if (input instanceof List<?> list) {
+                raw.addAll(list);
+            } else if (input instanceof Ingredient single) {
+                raw.add(single);
+            }
+        }
+        for (int i = 0; i < 9 && i < raw.size(); i++) {
+            String id = raw.get(i) instanceof Ingredient ing ? describe(ing)
+                    : raw.get(i) instanceof ItemStack stack ? idOf(stack) : null;
             cells.set(i, id);
             if (id != null) {
                 distinct.add(id);
             }
         }
+
         ItemStack result = recipe.getResultItem(access);
+        if (result.isEmpty()) {
+            Object output = call(recipe, "getOutput");
+            if (output == null) {
+                output = call(recipe, "getOutputs");
+            }
+            if (output instanceof List<?> list && !list.isEmpty()) {
+                output = list.get(0);
+            }
+            if (output instanceof ItemStack stack) {
+                result = stack;
+            }
+        }
+        if (distinct.isEmpty() && (result == null || result.isEmpty())) {
+            // 什么都读不出来：宁可报「打不开」，也不要开一个空界面让人以为坏了
+            return null;
+        }
         return build(recipe.getId(), type, false, cells, distinct, result, 0D,
                 RecipeDraft.DEFAULT_COOKING_TIME);
     }
