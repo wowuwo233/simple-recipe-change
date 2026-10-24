@@ -101,7 +101,11 @@ public class JeiJumpPlugin implements IModPlugin {
                         }
                         List<Slot> slots = screen.getMenu().slots;
                         for (int i = 0; i < slots.size(); i++) {
-                            if (!screen.acceptsGhostDrop(i)) {
+                            // 物品和流体各有各的可落区域：储罐格只认流体，物品格只认物品
+                            boolean ok = isFluid
+                                    ? screen.acceptsGhostFluidTarget(i)
+                                    : screen.acceptsGhostDrop(i);
+                            if (!ok) {
                                 continue;
                             }
                             Slot slot = slots.get(i);

@@ -1865,8 +1865,9 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
         graphics.fill(left + 17, top, left + 18, top + 18, 0xFF3A6EA5);
 
         if (value == null || !value.startsWith("fluid:")) {
-            // 空槽：画一个蓝色的水滴提示
-            graphics.drawString(this.font, "液", x + 5, y + 5, 0xFF5E8FBF, false);
+            // 空槽：中间点一小滴蓝点当提示，不写字（字会挡住整个 16px 的格子）
+            graphics.fill(x + 7, y + 9, x + 10, y + 12, 0xFF4A7BA8);
+            graphics.fill(x + 6, y + 10, x + 11, y + 11, 0xFF4A7BA8);
             return;
         }
         String rest = value.substring("fluid:".length());
@@ -1909,6 +1910,24 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
                     0xFFFFFFFF, true);
             graphics.pose().popPose();
         }
+    }
+
+    /**
+     * 流体能不能落到这个槽位。
+     *
+     * <p>拖拽目标列表是按这个判断筛的——之前用的是物品那套（acceptsGhostDrop），
+     * 而它明确排除了储罐格，结果拖液体时根本没有可落的目标。
+     */
+    public boolean acceptsGhostFluidTarget(int slotIndex) {
+        if (slotIndex < 0 || slotIndex >= this.menu.inputMenuCount()) {
+            return false;
+        }
+        int cell = this.menu.slots.get(slotIndex).getContainerSlot();
+        if (isDisabledInput(cell)) {
+            return false;
+        }
+        // 有专用储罐格的类型：只有储罐格收流体
+        return !this.recipeType.hasFluidSlot() || cell == RecipeEditorMenu.FLUID_CELL;
     }
 
     /** JEI 拖拽流体：写成 fluid:命名空间:路径:数量，格子里显示流体贴图 */
