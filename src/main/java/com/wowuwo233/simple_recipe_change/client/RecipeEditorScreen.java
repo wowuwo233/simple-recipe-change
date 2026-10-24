@@ -1598,8 +1598,11 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
                 } else if (hasShiftDown()) {
                     // Shift + 右键：清空
                     setInput(cell, null);
+                } else if (current.startsWith("fluid:")) {
+                    // 流体格：右键 +1000 mB
+                    setInput(cell, bumpFluid(current));
                 } else {
-                    // 右键：数量 +1，点几下就是几个（超过 64 回到 1）
+                    // 物品格：右键 +1，点几下就是几个（超过 64 回到 1）
                     setInput(cell, bumpCount(current));
                 }
             } else {
@@ -1986,6 +1989,26 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
         }
         int next = count >= 64 ? 1 : count + 1;
         return next <= 1 ? item : next + "x " + item;
+    }
+
+    /** 流体格数量 +1000 mB：{@code fluid:x:y:200} -> {@code fluid:x:y:1200} */
+    private static String bumpFluid(String cell) {
+        String rest = cell.substring("fluid:".length());
+        String id = rest;
+        int amount = 1000;
+        int lastColon = rest.lastIndexOf(':');
+        if (lastColon > rest.indexOf(':')) {
+            String tail = rest.substring(lastColon + 1);
+            try {
+                amount = Integer.parseInt(tail);
+                id = rest.substring(0, lastColon);
+            } catch (NumberFormatException ignored) {
+                // 末尾不是数字，按 0 起算
+                amount = 0;
+                id = rest;
+            }
+        }
+        return "fluid:" + id + ":" + (amount + 1000);
     }
 
     private boolean isDisabledInput(int index) {
