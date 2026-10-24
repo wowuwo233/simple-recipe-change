@@ -49,11 +49,6 @@ public final class FarmersCanvas implements RecipeCanvas {
         }
         CanvasPainter.recessAtSlot(graphics, leftPos + FARMERS_OUTPUT_X,
                 topPos + FARMERS_OUTPUT_Y);
-        CanvasPainter.arrowRight(graphics,
-                leftPos + (ctx.type() == RecipeType.FARMERS_COOKING
-                        ? COOK_GRID_X + 3 * SLOT_SIZE : CUT_TOOL_X + SLOT_SIZE) + 4,
-                leftPos + FARMERS_OUTPUT_X - 4,
-                topPos + FARMERS_OUTPUT_Y + 9);
 
         // 副产物：松散的一排，给个外框把它们圈在一起
         if (ctx.extraOutputs() > 0) {

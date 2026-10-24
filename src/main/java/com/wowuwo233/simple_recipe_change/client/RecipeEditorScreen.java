@@ -1351,11 +1351,7 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
                 }
                 String cellValue = cell < this.inputItems.size() ? this.inputItems.get(cell) : null;
                 if (this.recipeType.hasFluidSlot() && cell == RecipeEditorMenu.FLUID_CELL) {
-                    if (cellValue != null && cellValue.startsWith("fluid:")) {
-                        drawFluidCell(graphics, x + slot.x, y + slot.y, cellValue);
-                    } else {
-                        drawEmptyTank(graphics, x + slot.x, y + slot.y);
-                    }
+                    drawFluidSlot(graphics, x + slot.x, y + slot.y, cellValue);
                     continue;
                 }
                 if (cellValue != null && cellValue.startsWith("fluid:")) {
@@ -1568,6 +1564,18 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
             return true;
         }
 
+        // 产物格：右键 +1（没有原版配方时，产物数量只能手调）
+        int outputIndex = this.menu.outputMenuIndex();
+        if (button == 1 && outputIndex >= 0 && outputIndex < this.menu.slots.size()) {
+            Slot outSlot = this.menu.slots.get(outputIndex);
+            int sx = this.leftPos + outSlot.x;
+            int sy = this.topPos + outSlot.y;
+            if (mouseX >= sx - 1 && mouseX < sx + 17 && mouseY >= sy - 1 && mouseY < sy + 17) {
+                ModNetwork.requestBumpOutput();
+                return true;
+            }
+        }
+
         // 输入槽是展示槽：用光标上的物品设置它，空手点或右键则清空
         int inputs = this.menu.inputMenuCount();
         for (int i = 0; i < inputs && i < this.menu.slots.size(); i++) {
@@ -1580,16 +1588,19 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
                 continue;
             }
             if (button == 1) {
-                // 右键：空格填「最近一次填过的内容」，有内容则清空。
-                // 直接读相邻格子而不是记字段——拖拽落下的时序不稳，记字段会慢一拍
                 String current = cell < this.inputItems.size() ? this.inputItems.get(cell) : null;
                 if (current == null || current.isBlank()) {
+                    // 空格：复制最近的已填内容（拖拽落下的时序不稳，直接读可见格子最可靠）
                     String source = nearestFilledInput(cell);
                     if (source != null) {
                         setInput(cell, source);
                     }
-                } else {
+                } else if (hasShiftDown()) {
+                    // Shift + 右键：清空
                     setInput(cell, null);
+                } else {
+                    // 右键：数量 +1，点几下就是几个（超过 64 回到 1）
+                    setInput(cell, bumpCount(current));
                 }
             } else {
                 ItemStack carried = this.menu.getCarried();
@@ -1838,15 +1849,63 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
         }
     }
 
-    /** 空储罐：深色罐体 + 顶部高光 + 一个「液」字提示 */
-    private void drawEmptyTank(GuiGraphics graphics, int x, int y) {
-        int tankH = 30;
-        graphics.fill(x + 1, y, x + 15, y + tankH, 0xFF3A3A3A);
-        graphics.fill(x + 2, y + 1, x + 14, y + tankH - 1, 0xFF8B8B8B);
-        // 空罐也画三道刻度线，和装液体时同一个样子
-        graphics.fill(x + 2, y + tankH / 4, x + 12, y + tankH / 4 + 1, 0xFF8B1A1A);
-        graphics.fill(x + 2, y + tankH / 2, x + 14, y + tankH / 2 + 1, 0xFF8B1A1A);
-        graphics.fill(x + 2, y + tankH * 3 / 4, x + 12, y + tankH * 3 / 4 + 1, 0xFF8B1A1A);
+    /**
+     * 流体格：和工作台的格子同一套凹槽，但边框换成蓝色，一眼能看出「这里只收液体」。
+     */
+    private void drawFluidSlot(GuiGraphics graphics, int x, int y, String value) {
+        int left = x - 1;
+        int top = y - 1;
+        graphics.fill(left, top, left + 18, top + 18, 0xFF1A2733);
+        graphics.fill(left, top, left + 18, top + 1, 0xFF0E1620);
+        graphics.fill(left, top, left + 1, top + 18, 0xFF0E1620);
+        graphics.fill(left, top + 17, left + 18, top + 18, 0xFF3A6EA5);
+        graphics.fill(left + 17, top, left + 18, top + 18, 0xFF3A6EA5);
+
+        if (value == null || !value.startsWith("fluid:")) {
+            // 空槽：画一个蓝色的水滴提示
+            graphics.drawString(this.font, "液", x + 5, y + 5, 0xFF5E8FBF, false);
+            return;
+        }
+        String rest = value.substring("fluid:".length());
+        String id = rest;
+        String amount = "";
+        int lastColon = rest.lastIndexOf(':');
+        if (lastColon > rest.indexOf(':')) {
+            String tail = rest.substring(lastColon + 1);
+            try {
+                Integer.parseInt(tail);
+                id = rest.substring(0, lastColon);
+                amount = tail;
+            } catch (NumberFormatException ignored) {
+                // 末尾不是数字，整串当流体 ID
+            }
+        }
+        net.minecraft.world.level.material.Fluid fluid =
+                net.minecraftforge.registries.ForgeRegistries.FLUIDS.getValue(
+                        new net.minecraft.resources.ResourceLocation(id));
+        if (fluid == null || fluid == net.minecraft.world.level.material.Fluids.EMPTY) {
+            graphics.fill(x, y, x + 16, y + 16, 0x80FF5555);
+            return;
+        }
+        net.minecraftforge.client.extensions.common.IClientFluidTypeExtensions ext =
+                net.minecraftforge.client.extensions.common.IClientFluidTypeExtensions.of(fluid);
+        net.minecraft.client.renderer.texture.TextureAtlasSprite sprite =
+                FLUID_SPRITES.computeIfAbsent(id, key -> this.minecraft
+                        .getTextureAtlas(net.minecraft.world.inventory.InventoryMenu.BLOCK_ATLAS)
+                        .apply(ext.getStillTexture()));
+        graphics.blit(x, y, 0, 16, 16, sprite);
+        int tint = ext.getTintColor();
+        if ((tint & 0xFFFFFF) != 0xFFFFFF) {
+            graphics.fill(x, y, x + 16, y + 16, 0x40000000 | (tint & 0xFFFFFF));
+        }
+        if (!amount.isEmpty()) {
+            graphics.pose().pushPose();
+            graphics.pose().translate(x + 16, y + 16, 200);
+            graphics.pose().scale(0.5F, 0.5F, 1F);
+            graphics.drawString(this.font, amount, -this.font.width(amount), -8,
+                    0xFFFFFFFF, true);
+            graphics.pose().popPose();
+        }
     }
 
     /** JEI 拖拽流体：写成 fluid:命名空间:路径:数量，格子里显示流体贴图 */
@@ -1909,6 +1968,24 @@ public class RecipeEditorScreen extends AbstractContainerScreen<RecipeEditorMenu
             }
         }
         return null;
+    }
+
+    /** 单元格数量 +1：{@code minecraft:x} -> {@code 2x minecraft:x}，超过 64 回到 1 */
+    private static String bumpCount(String cell) {
+        int count = 1;
+        String item = cell;
+        int space = cell.indexOf("x ");
+        if (space > 0) {
+            try {
+                count = Integer.parseInt(cell.substring(0, space).trim());
+                item = cell.substring(space + 2);
+            } catch (NumberFormatException ignored) {
+                count = 1;
+                item = cell;
+            }
+        }
+        int next = count >= 64 ? 1 : count + 1;
+        return next <= 1 ? item : next + "x " + item;
     }
 
     private boolean isDisabledInput(int index) {

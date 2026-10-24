@@ -35,18 +35,6 @@ public final class CraftingCanvas implements RecipeCanvas {
         }
         // 产物凹槽
         CanvasPainter.recessAtSlot(graphics, outX, rowY);
-
-        // 中间的箭头：从网格右侧指向产物
-        int arrowY = rowY + 8;
-        int arrowX = gridX + 3 * CELL + 6;
-        int arrowEnd = outX - 6;
-        if (arrowEnd > arrowX) {
-            graphics.fill(arrowX, arrowY - 1, arrowEnd - 4, arrowY + 1, ARROW);
-            for (int i = 0; i < 4; i++) {
-                graphics.fill(arrowEnd - 4 + i, arrowY - 1 - i, arrowEnd - 3 + i, arrowY + 2 + i,
-                        ARROW);
-            }
-        }
     }
 
     /** 一个凹槽：内部深色 + 左上暗边 + 右下亮边，看起来是「凹进去」的 */

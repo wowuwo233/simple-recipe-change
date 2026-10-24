@@ -25,6 +25,5 @@ public final class CookingCanvas implements RecipeCanvas {
         int y = topPos + ROW_Y;
         CanvasPainter.recessAtSlot(graphics, inX, y);
         CanvasPainter.recessAtSlot(graphics, outX, y);
-        CanvasPainter.arrowRight(graphics, inX + CanvasPainter.CELL + 4, outX - 4, y + 9);
     }
 }

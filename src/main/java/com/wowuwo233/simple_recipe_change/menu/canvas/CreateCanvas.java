@@ -41,10 +41,6 @@ public final class CreateCanvas implements RecipeCanvas {
         }
         CanvasPainter.recessAtSlot(graphics, leftPos + CREATE_OUTPUT_X,
                 topPos + CREATE_GRID_Y + SLOT_SIZE);
-        CanvasPainter.arrowRight(graphics,
-                leftPos + CREATE_GRID_X + 3 * SLOT_SIZE + 4,
-                leftPos + CREATE_OUTPUT_X - 4,
-                topPos + CREATE_GRID_Y + SLOT_SIZE + 9);
         for (int i = 0; i < ctx.extraOutputs(); i++) {
             CanvasPainter.recessAtSlot(graphics,
                     leftPos + EXTRA_SLOT_X0 + i * EXTRA_SLOT_STEP,

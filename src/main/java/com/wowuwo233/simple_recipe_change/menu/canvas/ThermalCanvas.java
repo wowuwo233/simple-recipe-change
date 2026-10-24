@@ -36,11 +36,6 @@ public final class ThermalCanvas implements RecipeCanvas {
         }
         CanvasPainter.recessAtSlot(graphics, leftPos + CREATE_OUTPUT_X,
                 topPos + CREATE_GRID_Y + SLOT_SIZE);
-        CanvasPainter.arrowRight(graphics,
-                leftPos + (ctx.type().hasFluidSlot()
-                        ? FLUID_SLOT_X + SLOT_SIZE : CREATE_GRID_X + 3 * SLOT_SIZE) + 4,
-                leftPos + CREATE_OUTPUT_X - 4,
-                topPos + CREATE_GRID_Y + SLOT_SIZE + 9);
 
         for (int i = 0; i < ctx.extraOutputs(); i++) {
             CanvasPainter.recessAtSlot(graphics,

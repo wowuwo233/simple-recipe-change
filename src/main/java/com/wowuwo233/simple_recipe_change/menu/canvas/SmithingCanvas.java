@@ -28,7 +28,5 @@ public final class SmithingCanvas implements RecipeCanvas {
             CanvasPainter.recessAtSlot(graphics, leftPos + x, y);
         }
         CanvasPainter.recessAtSlot(graphics, leftPos + SMITH_OUTPUT_X, y);
-        CanvasPainter.arrowRight(graphics, leftPos + SMITH_ADDITION_X + CanvasPainter.CELL + 4,
-                leftPos + SMITH_OUTPUT_X - 4, y + 9);
     }
 }

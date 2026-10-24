@@ -70,6 +70,8 @@ public final class ModNetwork {
                 DeleteIndexPacket::encode, DeleteIndexPacket::decode, DeleteIndexPacket::handle);
         CHANNEL.registerMessage(id++, PickItemPacket.class,
                 PickItemPacket::encode, PickItemPacket::decode, PickItemPacket::handle);
+        CHANNEL.registerMessage(id++, BumpOutputPacket.class,
+                BumpOutputPacket::encode, BumpOutputPacket::decode, BumpOutputPacket::handle);
         CHANNEL.registerMessage(id++, SetNotePacket.class,
                 SetNotePacket::encode, SetNotePacket::decode, SetNotePacket::handle);
         CHANNEL.registerMessage(id++, SyncEditorPacket.class,
@@ -705,6 +707,44 @@ public final class ModNetwork {
             });
             ctx.setPacketHandled(true);
         }
+    }
+
+    /**
+     * 客户端：产物数量 +1。
+     *
+     * <p>没有原版配方可参照时（比如「1 个原木 → 4 个木板」这种自己编的配方），
+     * 产物数量只能手调。右键产物格一次 +1，超过 64 回到 1。
+     */
+    public record BumpOutputPacket() {
+        public static void encode(BumpOutputPacket msg, FriendlyByteBuf buf) {
+        }
+
+        public static BumpOutputPacket decode(FriendlyByteBuf buf) {
+            return new BumpOutputPacket();
+        }
+
+        public static void handle(BumpOutputPacket msg, Supplier<NetworkEvent.Context> ctxSupplier) {
+            NetworkEvent.Context ctx = ctxSupplier.get();
+            ctx.enqueueWork(() -> {
+                ServerPlayer player = ctx.getSender();
+                if (player == null || !(player.containerMenu instanceof RecipeEditorMenu menu)) {
+                    return;
+                }
+                ItemStack stack = menu.getOutputContainer().getItem(0);
+                if (stack.isEmpty()) {
+                    return;
+                }
+                int next = stack.getCount() >= 64 ? 1 : stack.getCount() + 1;
+                stack.setCount(next);
+                menu.getOutputContainer().setItem(0, stack);
+            });
+            ctx.setPacketHandled(true);
+        }
+    }
+
+    /** 客户端：产物数量 +1 */
+    public static void requestBumpOutput() {
+        CHANNEL.sendToServer(new BumpOutputPacket());
     }
 
     /** 客户端：改备注 */
